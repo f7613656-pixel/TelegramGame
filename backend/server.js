@@ -85,33 +85,44 @@ app.post('/api/tap', authMiddleware, (req, res) => {
     res.json(player); 
 });
 
-// 3. Универсальный маршрут для улучшений
+// ОДИН универсальный маршрут для всех улучшений
 app.post('/api/upgrade/:type', authMiddleware, (req, res) => {
     const { userId } = req.body;
-    const type = req.params.type; // Теперь тип берется из URL корректно
+    const type = req.params.type; // Теперь это 'click' или 'passive'
     const player = players[userId];
 
-    if (!player) return res.status(404).send('User not found');
+    // Если игрока нет в памяти (например, сервер перезагрузился)
+    if (!player) {
+        return res.status(404).json({ message: "User not found. Please refresh." });
+    }
 
     let cost = 0;
+
+    // Рассчитываем цену
     if (type === 'click') {
         cost = player.clickPower * 100;
     } else if (type === 'passive') {
-        cost = (Math.floor(player.passiveIncome / 5) + 1) * 150;
+        // Уровни пассива считаем кратно 5
+        const level = Math.floor(player.passiveIncome / 5);
+        cost = (level + 1) * 150;
     } else {
-        return res.status(400).send('Invalid upgrade type');
+        return res.status(400).json({ message: "Invalid upgrade type" });
     }
 
+    // Проверка денег
     if (player.balance >= cost) {
         player.balance -= cost;
+        
         if (type === 'click') {
             player.clickPower += 1;
-        } else {
+        } else if (type === 'passive') {
             player.passiveIncome += 5;
         }
-        res.json(player);
+
+        console.log(`Игрок ${userId} купил ${type}. Новый баланс: ${player.balance}`);
+        res.json(player); // Отправляем обновленного игрока целиком
     } else {
-        res.status(400).send('Low balance');
+        res.status(400).json({ message: "Low balance" });
     }
 });
 
