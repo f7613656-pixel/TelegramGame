@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="Cyber-Zavod: Мультяшный кликер в Telegram" />
+    
+    <!-- Подключаем главный скрипт Telegram WebApp -->
+    <!-- БЕЗ ЭТОГО СКРИПТА ПРИЛОЖЕНИЕ НЕ БУДЕТ РАБОТАТЬ В ТЕЛЕГРАМЕ -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <title>Cyber-Zavod Clicker</title>
+    
+    <style>
+      /* Быстрая заглушка для фона, чтобы при загрузке не было белой вспышки */
+      body {
+        margin: 0;
+        background-color: #1a1a1a; 
+        overflow: hidden; /* Запрещаем скролл всей страницы */
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>Вам нужно включить JavaScript, чтобы запустить это приложение.</noscript>
+    
+    <!-- Сюда React будет "вставлять" все наше приложение -->
+    <div id="root"></div>
+
+    <script>
+      // Инициализация Telegram WebApp
+      const tg = window.Telegram.WebApp;
+      
+      // Расширяем приложение на все окно
+      tg.expand();
+
+      // Устанавливаем цвет шапки (в цвет твоего бэкграунда)
+      tg.setHeaderColor('#1a1a1a');
+      tg.setBackgroundColor('#1a1a1a');
+    </script>
+  </body>
+</html>

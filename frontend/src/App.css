@@ -1,0 +1,192 @@
+:root {
+  --bg-color: #000000;
+  --card-bg: #14151a;
+  --capsule-bg: #1c1d24;
+  --accent-color: #00d4ff;
+  --text-main: #ffffff;
+  --text-dim: #888888;
+}
+
+* { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+body {
+  margin: 0;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  font-family: -apple-system, system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+/* ШАПКА */
+.header-new {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+}
+
+.header-left { display: flex; align-items: center; gap: 12px; }
+
+.avatar-placeholder {
+  width: 42px;
+  height: 42px;
+  background: #ffbd5a;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: #fff;
+}
+
+.nickname { font-weight: 800; font-size: 0.9rem; }
+
+.currency-capsule {
+  background: var(--capsule-bg);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  padding: 5px 12px;
+  gap: 8px;
+}
+
+.currency-item { display: flex; align-items: center; gap: 5px; font-weight: bold; font-size: 0.85rem; }
+.mini-icon { width: 16px; height: 16px; }
+.separator { width: 1px; height: 14px; background: #333; }
+
+/* КОНТЕНТ */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* КНОПКА КЛИКЕРА */
+.clicker-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+}
+
+.tap-button {
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  border: 10px solid #1a1a1a;
+  background: linear-gradient(135deg, #00d4ff 0%, #0055ff 100%);
+  box-shadow: 0 0 50px rgba(0, 85, 255, 0.4);
+  cursor: pointer;
+  position: relative;
+}
+
+.tap-button:active { transform: scale(0.92); }
+.tap-button::after { content: 'TAP'; color: white; font-weight: 900; font-size: 2rem; }
+
+.power-info { color: var(--accent-color); font-weight: bold; font-size: 1.1rem; }
+.tap-hint { color: var(--text-dim); font-size: 0.8rem; margin-top: 10px; }
+
+/* КАРТОЧКИ МАГАЗИНА И ТОПА */
+.menu-container { width: 100%; }
+.page-title { text-align: center; font-size: 1.2rem; margin-bottom: 20px; }
+
+.upgrade-card, .top-entry, .stat-row {
+  background: var(--card-bg);
+  padding: 18px;
+  border-radius: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.upgrade-info { display: flex; flex-direction: column; gap: 4px; }
+.upgrade-info span { font-size: 0.8rem; color: var(--text-dim); }
+
+.buy-btn {
+  background: #fff;
+  color: #000;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 12px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.buy-btn:active { transform: scale(0.95); }
+
+/* НАВИГАЦИЯ */
+.bottom-nav {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: #000;
+  padding: 15px 5px 30px;
+  border-top: 1px solid #1a1a1a;
+}
+
+.bottom-nav button {
+  background: none; border: none; color: #444;
+  font-weight: bold; font-size: 0.7rem; cursor: pointer;
+}
+
+.bottom-nav button.active { color: #fff; }
+
+/* Добавь это в App.css */
+
+.tap-wrapper {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.floating-number {
+  position: fixed; /* Используем fixed, чтобы координаты были точными по клику */
+  color: #00d4ff;
+  font-size: 2rem;
+  font-weight: 900;
+  pointer-events: none; /* Чтобы цифры не мешали кликать дальше */
+  animation: floatUp 0.8s ease-out forwards;
+  z-index: 1000;
+  text-shadow: 0 0 10px rgba(0, 212, 255, 0.8);
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-150px);
+    opacity: 0;
+  }
+}
+
+/* Эффект пульсации для кнопки при активном клике */
+.tap-button:active {
+  transform: scale(0.92);
+  box-shadow: 0 0 20px rgba(0, 85, 255, 0.6);
+}
+
+.income-badge {
+    background: rgba(0, 255, 136, 0.1);
+    color: #00ff88;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 0.9rem;
+    border: 1px solid rgba(0, 255, 136, 0.2);
+    margin-bottom: 10px;
+}
