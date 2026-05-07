@@ -2,14 +2,16 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const app = express();
-const players = {}; // Объект для хранения данных игроков в оперативной памяти
+
+const players = {}; // Хранилище в памяти
+
 app.use(cors());
 app.use(express.json());
 
-// ВСТАВЬ СВОЙ ТОКЕН ОТ BOTFATHER ЗДЕСЬ
+// Токен бота
 const BOT_TOKEN = '8782512322:AAE2dwWX7V2PZwFIj3aAFLC-GoszWh0hwiQ';
 
-// --- ФУНКЦИЯ ПРОВЕРКИ (КРИПТОГРАФИЯ) ---
+// --- ПРОВЕРКА ПОДЛИННОСТИ ---
 function verifyTelegramWebAppData(initData) {
     if (!initData) return false;
     const urlParams = new URLSearchParams(initData);
@@ -17,7 +19,6 @@ function verifyTelegramWebAppData(initData) {
     urlParams.delete('hash');
     urlParams.sort();
     
-    // Собираем строку данных
     const dataCheckString = Array.from(urlParams.entries())
         .map(([key, value]) => `${key}=${value}`)
         .join('\n');
@@ -28,115 +29,92 @@ function verifyTelegramWebAppData(initData) {
     return _hash === hash;
 }
 
-// --- MIDDLEWARE ЗАЩИТЫ ---
+// --- ЗАЩИТНЫЙ СЛОЙ ---
 const authMiddleware = (req, res, next) => {
     const authHeader = req.headers.authorization;
-    const initData = authHeader.split(' ')[1];
-    const isValid = verifyTelegramWebAppData(initData);
+    if (!authHeader) return res.status(401).send('No auth header');
     
-    if (!isValid) {
-        console.log("Ошибка проверки initData!"); // Это появится в логах Render
+    const initData = authHeader.split(' ')[1];
+    if (!verifyTelegramWebAppData(initData)) {
         return res.status(401).send('Unauthorized');
     }
     next();
 };
 
-// --- МАРШРУТЫ (С ПРИМЕНЕНИЕМ ЗАЩИТЫ) ---
+// --- МАРШРУТЫ ---
 
-// Теперь добавляем authMiddleware в каждый важный роут
-app.post('/api/tap', authMiddleware, async (req, res) => {
-    const { userId } = req.body;
-    // ТУТ ЛОГИКА: Находим юзера в базе и САМИ прибавляем ему clickPower
-    // res.json({ balance: newBalance });
-});
-
+// 1. Получение данных пользователя (или создание нового)
 app.get('/api/user/:id', authMiddleware, (req, res) => {
     const userId = req.params.id;
 
-    // Если игрока нет в памяти, создаем его с начальными параметрами
     if (!players[userId]) {
         players[userId] = {
+            id: userId,
             balance: 0,
             clickPower: 1,
             passiveIncome: 0,
-            lastUpdate: Date.now()
+            firstName: "Игрок" // Можно передавать из фронта при первом входе
         };
-        console.log(`Создан новый игрок: ${userId}`);
     }
-
     res.json(players[userId]);
 });
 
-app.post('/api/upgrade/click', authMiddleware, (req, res) => {
-    const { userId } = req.body;
-    const type = req.params.type;
-
-    // 1. Проверяем, существует ли игрок в памяти
-    if (!players[userId]) {
-        return res.status(404).json({ message: "Пользователь не найден" });
-    }
-
-    const user = players[userId];
-    let cost = 0;
-
-    // 2. Рассчитываем стоимость (логика должна совпадать с фронтендом!)
-    if (type === 'click') {
-        cost = user.clickPower * 100;
-    } else if (type === 'passive') {
-        cost = (Math.floor(user.passiveIncome / 5) + 1) * 150;
-    }
-
-    // 3. Проверка баланса
-    if (user.balance < cost) {
-        return res.status(400).json({ message: "Low balance" });
-    }
-
-    // 4. Списание денег и применение эффекта
-    user.balance -= cost;
-    
-    if (type === 'click') {
-        user.clickPower += 1;
-    } else if (type === 'passive') {
-        user.passiveIncome += 5;
-    }
-
-    // 5. Отправляем обновленные данные
-    res.json({
-        balance: user.balance,
-        clickPower: user.clickPower,
-        passiveIncome: user.passiveIncome
-    });
-});
-
-app.post('/api/upgrade/passive', authMiddleware,(req, res) => {
+// 2. Обработка клика
+app.post('/api/tap', authMiddleware, (req, res) => {
     const { userId } = req.body;
     const player = players[userId];
-    if (!player) return res.status(404).send("User not found");
-    const level = Math.floor(player.passiveIncome / 5);
-    const cost = (level + 1) * 150;
+
+    if (!player) return res.status(404).send('User not found');
+
+    player.balance += player.clickPower;
+    res.json({ balance: player.balance });
+});
+
+// 3. Универсальный маршрут для улучшений
+app.post('/api/upgrade/:type', authMiddleware, (req, res) => {
+    const { userId } = req.body;
+    const type = req.params.type; // Теперь тип берется из URL корректно
+    const player = players[userId];
+
+    if (!player) return res.status(404).send('User not found');
+
+    let cost = 0;
+    if (type === 'click') {
+        cost = player.clickPower * 100;
+    } else if (type === 'passive') {
+        cost = (Math.floor(player.passiveIncome / 5) + 1) * 150;
+    } else {
+        return res.status(400).send('Invalid upgrade type');
+    }
+
     if (player.balance >= cost) {
         player.balance -= cost;
-        player.passiveIncome += 5;
+        if (type === 'click') {
+            player.clickPower += 1;
+        } else {
+            player.passiveIncome += 5;
+        }
         res.json(player);
-    } else res.status(400).send("Low balance");
+    } else {
+        res.status(400).send('Low balance');
+    }
 });
 
-app.get('/api/leaderboard',  async (req, res) => {
-    // Получаем топ-100 из базы
-    const topUsers = await Database.getTop(100); 
-    
-    // Формируем безопасный массив
-    const safeTop = topUsers.map(u => ({
-        name: u.first_name, // Отдаем только имя
-        balance: u.balance  // И баланс
-        // НИКАКИХ userId или фото
-    }));
+// 4. Лидерборд (работает с объектом players в памяти)
+app.get('/api/leaderboard', (req, res) => {
+    const topUsers = Object.values(players)
+        .sort((a, b) => b.balance - a.balance)
+        .slice(0, 10)
+        .map(u => ({
+            name: u.firstName || "Аноним",
+            balance: Math.floor(u.balance)
+        }));
 
-    res.json(safeTop);
+    res.json(topUsers);
 });
 
-// Запуск сервера (В САМОМ КОНЦЕ)
-const PORT = process.env.PORT || 3001;
+// Запуск
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`Server started on port ${PORT}`);
 });
