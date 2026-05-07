@@ -1,78 +1,71 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 
+// Инициализация Telegram WebApp SDK
 const tg = window.Telegram.WebApp;
-const API_URL = 'https://telegramgame-1.onrender.com'; 
+const API_URL = 'https://твой-бэкенд.onrender.com'; // ЗАМЕНИ НА СВОЮ ССЫЛКУ
 
 function App() {
-    const [user, setUser] = useState({ id: 'test_user', first_name: 'BANANEZLAL' });
+    // Данные пользователя из Telegram
+    const [user] = useState(tg.initDataUnsafe?.user || { id: 'test_user', first_name: 'Игрок' });
+    
+    // Состояние игры
     const [balance, setBalance] = useState(0);
     const [clickPower, setClickPower] = useState(1);
     const [passiveIncome, setPassiveIncome] = useState(0);
-    const [page, setPage] = useState('main'); 
-    const [topPlayers, setTopPlayers] = useState([]);
-    const [clicks, setClicks] = useState([]);
+    const [clicks, setClicks] = useState([]); // Для анимации вылетающих цифр
 
+    // 1. Загрузка данных при старте
     useEffect(() => {
         tg.ready();
-        tg.expand();
-        const tgUser = tg.initDataUnsafe?.user;
-        if (tgUser) setUser(tgUser);
-
-        const loadData = async () => {
-            const userId = tgUser ? tgUser.id : 'test_user';
-            try {
-                const res = await fetch(`${API_URL}/api/user/${userId}?username=${tgUser?.first_name || 'BANANEZLAL'}`);
-                const data = await res.json();
-                // Принудительно превращаем в числа
-                setBalance(Number(data.balance) || 0);
-                setClickPower(Number(data.clickPower) || 1);
-                setPassiveIncome(Number(data.passiveIncome) || 0);
-            } catch (err) { console.error("Load error"); }
-        };
-        loadData();
-    }, []);
-
-    useEffect(() => {
-        if (passiveIncome > 0) {
-            const interval = setInterval(() => {
-                setBalance(prev => prev + (Number(passiveIncome) / 10));
-            }, 100);
-            return () => clearInterval(interval);
-        }
-    }, [passiveIncome]);
-
-    const handleTap = async (e) => {
-        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+        tg.expand(); // Развернуть на весь экран
         
-        const newBalance = balance + Number(clickPower);
-        setBalance(newBalance); // Сразу обновляем экран
+        const loadUserData = async () => {
+            try {
+                const res = await fetch(`${API_URL}/api/user/${user.id}`);
+                const data = await res.json();
+                setBalance(Number(data.balance));
+                setClickPower(Number(data.clickPower));
+                setPassiveIncome(Number(data.passiveIncome));
+            } catch (err) {
+                console.error("Ошибка при загрузке данных:", err);
+            }
+        };
+        loadUserData();
+    }, [user.id]);
 
-        // Анимация цифр
+    // 2. Логика тапа (клика)
+    const handleTap = (e) => {
+        // Виброотклик
+        if (tg.HapticFeedback) {
+            tg.HapticFeedback.impactOccurred('medium');
+        }
+
+        const newBalance = balance + clickPower;
+        setBalance(newBalance);
+
+        // Анимация "+1" в месте клика
         const id = Date.now();
         const x = e.pageX || (e.touches && e.touches[0].pageX);
         const y = e.pageY || (e.touches && e.touches[0].pageY);
+        
         setClicks((prev) => [...prev, { id, x, y }]);
-        setTimeout(() => setClicks((prev) => prev.filter(c => c.id !== id)), 800);
+        setTimeout(() => {
+            setClicks((prev) => prev.filter(c => c.id !== id));
+        }, 800);
 
-        try {
-            await fetch(`${API_URL}/api/tap`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    userId: user.id, 
-                    clientBalance: newBalance // ПЕРЕДАЕМ БАЛАНС ДЛЯ СИНХРОНИЗАЦИИ
-                })
-            });
-        } catch (err) {}
+        // Синхронизация с сервером (отправляем новый баланс)
+        fetch(`${API_URL}/api/tap`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id, clientBalance: newBalance })
+        }).catch(err => console.error("Ошибка синхронизации тапа"));
     };
 
-   const buyUpgrade = async (type) => {
-        // Убедимся, что type это именно 'click' или 'passive'
-        const url = `${API_URL}/api/upgrade/${type}`;
-        
+    // 3. Покупка улучшений
+    const buyUpgrade = async (type) => {
         try {
-            const res = await fetch(url, {
+            const res = await fetch(`${API_URL}/api/upgrade/${type}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user.id })
@@ -83,104 +76,81 @@ function App() {
                 setBalance(Number(data.balance));
                 setClickPower(Number(data.clickPower));
                 setPassiveIncome(Number(data.passiveIncome));
-                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                tg.HapticFeedback.notificationOccurred('success');
             } else {
-                const errorMsg = await res.text();
-                alert("Ошибка: " + errorMsg);
+                const errorText = await res.text();
+                tg.showAlert(`Недостаточно монет!`);
             }
         } catch (err) {
-            console.error("Ошибка сети:", err);
-            alert("Сервер недоступен");
+            console.error("Ошибка при покупке:", err);
         }
     };
 
-    // БЕЗОПАСНЫЙ РАСЧЕТ ЦЕН (защита от NaN)
-    const currentClickPower = Number(clickPower) || 1;
-    const currentPassiveIncome = Number(passiveIncome) || 0;
-
-    const clickCost = currentClickPower * 100;
-    const passiveLevel = Math.floor(currentPassiveIncome / 5);
-    const passiveCost = (passiveLevel + 1) * 150;
+    // 4. Пассивный доход (визуальное обновление каждую секунду)
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setBalance((prev) => prev + (passiveIncome / 10));
+        }, 100); // Обновляем раз в 0.1 сек для плавности
+        return () => clearInterval(interval);
+    }, [passiveIncome]);
 
     return (
-        <div className="app">
-            <header className="header-new">
-                <div className="header-left">
-                    <div className="avatar-placeholder">{user.first_name[0]}</div>
-                    <span className="nickname">{user.first_name.toUpperCase()}</span>
+        <div className="App">
+            {/* Шапка профиля */}
+            <div className="header">
+                <div className="user-info">
+                    {user.photo_url && <img src={user.photo_url} alt="avatar" className="avatar" />}
+                    <span>{user.first_name} {user.last_name || ''}</span>
                 </div>
-                <div className="header-right">
-                    <div className="currency-capsule">
-                        <div className="currency-item">
-                            <span>{Math.floor(balance).toLocaleString()}</span>
-                            <img src="https://cdn-icons-png.flaticon.com/512/6001/6001527.png" alt="coin" className="mini-icon" />
-                        </div>
-                    </div>
+                <div className="stats">
+                    <span>⚡ {clickPower}</span>
+                    <span>⏳ {passiveIncome}/с</span>
                 </div>
-            </header>
+            </div>
 
-            <main className="content">
-                {page === 'main' && (
-                    <div className="clicker-page">
-                        <div className="income-badge">⚡ {currentPassiveIncome}/сек</div>
-                        <div className="tap-wrapper">
-                            <button className="tap-button" onClick={handleTap}></button>
-                            {clicks.map(c => (
-                                <div key={c.id} className="floating-number" style={{ left: c.x - 20, top: c.y - 40 }}>
-                                    +{currentClickPower}
-                                </div>
-                            ))}
-                        </div>
-                        <p className="tap-hint">СИЛА КЛИКА: {currentClickPower}</p>
+            {/* Основная зона клика */}
+            <div className="clicker-container">
+                <div className="balance-display">
+                    <img src="https://cdn-icons-png.flaticon.com/512/290/290836.png" alt="coin" width="40" />
+                    <h1>{Math.floor(balance).toLocaleString()}</h1>
+                </div>
+
+                <div className="main-button" onClick={handleTap}>
+                    <img 
+                        src="https://img.freepik.com/free-vector/banana-cartoon-style_1308-100234.jpg" 
+                        alt="banana" 
+                        className="banana-img"
+                    />
+                </div>
+            </div>
+
+            {/* Магазин улучшений */}
+            <div className="shop">
+                <button className="upgrade-btn" onClick={() => buyUpgrade('click')}>
+                    <div className="btn-text">
+                        <b>Улучшить тап</b>
+                        <span>Цена: {clickPower * 100} 🍌</span>
                     </div>
-                )}
+                </button>
 
-                {page === 'upgrades' && (
-                    <div className="menu-container">
-                        <h2 className="page-title">МАГАЗИН</h2>
-                        <div className="upgrade-card">
-                            <div className="upgrade-info"><b>УРОВЕНЬ КЛИКА</b><span>Сила: +1</span></div>
-                            <button onClick={() => buyUpgrade('click')} className="buy-btn">{clickCost} 💰</button>
-                        </div>
-                        <div className="upgrade-card">
-                            <div className="upgrade-info"><b>ВИДЕОКАРТА</b><span>Доход: +5/сек</span></div>
-                            <button onClick={() => buyUpgrade('passive')} className="buy-btn">{passiveCost} 💰</button>
-                        </div>
+                <button className="upgrade-btn" onClick={() => buyUpgrade('passive')}>
+                    <div className="btn-text">
+                        <b>Видеокарта</b>
+                        <span>Цена: {(Math.floor(passiveIncome / 5) + 1) * 150} 🍌</span>
                     </div>
-                )}
+                </button>
+            </div>
 
-                {page === 'top' && (
-                    <div className="menu-container">
-                        <h2 className="page-title">ЛИДЕРЫ</h2>
-                        <div className="leaderboard">
-                            {topPlayers.map((p, i) => (
-                                <div key={p.id} className="top-entry">
-                                    <span>{i + 1}. {p.username}</span>
-                                    <b>{Math.floor(Number(p.balance)).toLocaleString()}</b>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {page === 'profile' && (
-                    <div className="menu-container">
-                        <h2 className="page-title">ПРОФИЛЬ</h2>
-                        <div className="stats-box">
-                            <div className="stat-row"><span>ID:</span> <b>{user.id}</b></div>
-                            <div className="stat-row"><span>КЛИК:</span> <b>{currentClickPower}</b></div>
-                            <div className="stat-row"><span>МАЙНИНГ:</span> <b>{currentPassiveIncome}/с</b></div>
-                        </div>
-                    </div>
-                )}
-            </main>
-
-            <nav className="bottom-nav">
-                <button onClick={() => setPage('main')} className={page === 'main' ? 'active' : ''}>ИГРА</button>
-                <button onClick={() => setPage('upgrades')} className={page === 'upgrades' ? 'active' : ''}>МАГАЗИН</button>
-                <button onClick={() => { setPage('top'); fetch(`${API_URL}/api/top`).then(r => r.json()).then(setTopPlayers); }} className={page === 'top' ? 'active' : ''}>ТОП</button>
-                <button onClick={() => setPage('profile')} className={page === 'profile' ? 'active' : ''}>ПРОФИЛЬ</button>
-            </nav>
+            {/* Слой для анимаций клика */}
+            {clicks.map(click => (
+                <div 
+                    key={click.id} 
+                    className="click-animation" 
+                    style={{ left: click.x, top: click.y }}
+                >
+                    +{clickPower}
+                </div>
+            ))}
         </div>
     );
 }
