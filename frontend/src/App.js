@@ -63,7 +63,7 @@ function App() {
     // 1. Оставляем визуальный эффект для скорости
     setBalance(prev => prev + clickPower);
 
-   setClicks((prev) => [...prev, { id, x, y, value: clickPower }]);
+    setClicks((prev) => [...prev, { id, x, y, value: clickPower }]);
     setTimeout(() => setClicks((prev) => prev.filter(c => c.id !== id)), 800)
     try {
         const res = await authorizedFetch('/api/tap', {
