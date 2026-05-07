@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const app = express();
-
+const players = {}; // Объект для хранения данных игроков в оперативной памяти
 app.use(cors());
 app.use(express.json());
 
