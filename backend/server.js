@@ -50,6 +50,23 @@ app.post('/api/tap', authMiddleware, async (req, res) => {
     // res.json({ balance: newBalance });
 });
 
+app.get('/api/user/:id', authMiddleware, (req, res) => {
+    const userId = req.params.id;
+
+    // Если игрока нет в памяти, создаем его с начальными параметрами
+    if (!players[userId]) {
+        players[userId] = {
+            balance: 0,
+            clickPower: 1,
+            passiveIncome: 0,
+            lastUpdate: Date.now()
+        };
+        console.log(`Создан новый игрок: ${userId}`);
+    }
+
+    res.json(players[userId]);
+});
+
 app.post('/api/upgrade/click', authMiddleware, async (req, res) => {
     const { userId } = req.body;
     const player = players[userId];
