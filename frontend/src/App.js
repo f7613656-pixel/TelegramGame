@@ -13,6 +13,8 @@ function App() {
     const [clicks, setClicks] = useState([]);
     const [activeTab, setActiveTab] = useState('home');
 
+    const [modal, setModal] = useState({ show: false, message: '' });
+
     useEffect(() => {
         tg.ready();
         tg.expand();
@@ -31,6 +33,12 @@ function App() {
         };
         loadData();
     }, [user.id]);
+
+    const showNotice = (msg) => {
+        setModal({ show: true, message: msg });
+        // Автоматически закрываем через 2.5 секунды
+        setTimeout(() => setModal({ show: false, message: '' }), 2500);
+    };
 
     useEffect(() => {
         if (passiveIncome > 0) {
@@ -59,42 +67,29 @@ function App() {
         }).catch(err => console.error("Ошибка сохранения тапа:", err));
     };
 
-    const buyUpgrade = async (type) => {
-    const targetUrl = `${API_URL}/api/upgrade/${type}`;
-    
-    try {
-        const res = await fetch(targetUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user.id })
-        });
+   const buyUpgrade = async (type) => {
+        try {
+            const res = await fetch(`${API_URL}/api/upgrade/${type}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user.id })
+            });
 
-        // Если сервер ответил успешно
-        if (res.ok) {
             const data = await res.json();
-            setBalance(Number(data.balance));
-            setClickPower(Number(data.clickPower));
-            setPassiveIncome(Number(data.passiveIncome));
-            
-            // Легкая вибрация при успешной покупке
-            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-        } 
-        // Если денег не хватает (обычно сервер присылает 400 или 403)
-        else if (res.status === 400 || res.status === 403) {
-            tg.showAlert("Недостаточно средств для улучшения!");
-            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+
+            if (res.ok) {
+                setBalance(Number(data.balance));
+                setClickPower(Number(data.clickPower));
+                setPassiveIncome(Number(data.passiveIncome));
+            } else if (res.status === 400 || res.status === 403) {
+                showNotice("Недостаточно средств");
+            } else {
+                showNotice("Ошибка сервера");
+            }
+        } catch (err) {
+            showNotice("Нет связи с сервером");
         }
-        // Если произошла какая-то другая ошибка на стороне сервера
-        else {
-            const errorData = await res.json().catch(() => ({}));
-            tg.showAlert(errorData.message || `Ошибка сервера: ${res.status}`);
-        }
-    } catch (err) {
-        // Сюда мы попадаем, только если бэкенд выключен или URL неверный
-        console.error("Критическая ошибка связи:", err);
-        tg.showAlert("Ошибка связи с сервером. Убедитесь, что бэкенд запущен.");
-    }
-};
+    };
 
     return (
         <div className="App">
@@ -133,6 +128,15 @@ function App() {
         </div>
     </div>
 </div>
+
+{modal.show && (
+                <div className="modal-overlay">
+                    <div className="modal-content">
+                        <div className="modal-icon">!</div>
+                        <p>{modal.message}</p>
+                    </div>
+                </div>
+            )}
 
                         <div className="game-area">
     <div className="click-wrapper" onClick={handleTap}>
