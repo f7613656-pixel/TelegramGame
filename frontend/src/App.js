@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 
 const tg = window.Telegram.WebApp;
-const API_URL = 'http://localhost:3001'; 
+const API_URL = 'https://telegramgame-1.onrender.com'; 
 
 function App() {
     const [user, setUser] = useState({ id: 'test_user', first_name: 'BANANEZLAL' });
