@@ -129,14 +129,7 @@ function App() {
     </div>
 </div>
 
-{modal.show && (
-                <div className="modal-overlay">
-                    <div className="modal-content">
-                        <div className="modal-icon">!</div>
-                        <p>{modal.message}</p>
-                    </div>
-                </div>
-            )}
+
 
                         <div className="game-area">
     <div className="click-wrapper" onClick={handleTap}>
@@ -161,6 +154,15 @@ function App() {
                         ))}
                     </div>
                 )}
+                
+                {modal.show && (
+                <div className="modal-overlay">
+                    <div className="modal-content">
+                        <div className="modal-icon">!</div>
+                        <p>{modal.message}</p>
+                    </div>
+                </div>
+            )}
 
                 {activeTab === 'shop' && (
                     <div className="tab-shop">
