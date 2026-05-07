@@ -87,8 +87,9 @@ function App() {
                 showNotice("Ошибка сервера");
             }
         } catch (err) {
-            showNotice("Нет связи с сервером");
-        }
+    console.error("Детали ошибки:", err); // Посмотри это в консоли F12
+    showNotice("Нет связи с сервером");
+}
     };
 
     return (
