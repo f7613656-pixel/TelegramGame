@@ -80,40 +80,81 @@ body {
   white-space: nowrap;
 }
 
-/* БЛОК БАЛАНСА */
+/* ОБНОВЛЕННЫЙ СЧЕТЧИК МОНЕТ */
 .balance-pill {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: linear-gradient(145deg, #1a1a1a, #000);
-  padding: 6px 14px;
-  border-radius: 100px;
-  border: 1px solid rgba(241, 196, 15, 0.2); /* Легкое золотистое свечение */
+  gap: 12px;
+  background: linear-gradient(180deg, #1e1e1e 0%, #0a0a0a 100%);
+  padding: 6px 16px 6px 8px; /* Больше места справа под текст */
+  border-radius: 50px;
+  border: 1px solid rgba(241, 196, 15, 0.3);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+/* ЭФФЕКТНАЯ МОНЕТА */
+.coin-icon {
+  width: 32px;
+  height: 32px;
+  background: radial-gradient(circle at 30% 30%, #f1c40f, #d4ac0d);
+  border-radius: 50%;
   position: relative;
-  overflow: hidden;
+  border: 2px solid #b7950b;
+  box-shadow: 0 0 15px rgba(241, 196, 15, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Блик на монете */
+.coin-star {
+  width: 4px;
+  height: 4px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 0 8px 2px white;
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  animation: shine 3s infinite;
+}
+
+.balance-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
 }
 
 .balance-value {
   font-weight: 900;
-  font-size: 15px;
-  color: var(--gold);
+  font-size: 18px; /* Увеличили размер */
+  color: #fff;
   letter-spacing: 0.5px;
-  text-shadow: 0 0 10px rgba(241, 196, 15, 0.3);
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.2);
 }
 
-.coin-glow {
-  width: 10px;
-  height: 10px;
-  background: var(--gold);
-  border-radius: 50%;
-  box-shadow: 0 0 12px var(--gold);
-  animation: pulse-gold 2s infinite;
+.balance-label {
+  font-size: 8px;
+  color: var(--gold);
+  font-weight: 800;
+  letter-spacing: 1px;
+  margin-top: 2px;
 }
 
-@keyframes pulse-gold {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.7; }
-  100% { transform: scale(1); opacity: 1; }
+@keyframes shine {
+  0%, 20%, 100% { opacity: 0; transform: scale(0); }
+  10% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse-balance {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+/* Добавим микро-анимацию при изменении баланса */
+.balance-value {
+  transition: all 0.1s ease-out;
 }
 
 /* CONTENT */
