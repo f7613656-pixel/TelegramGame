@@ -60,11 +60,19 @@ function App() {
     }, [passiveIncome]);
 
    const handleTap = async (e) => {
-    // 1. Оставляем визуальный эффект для скорости
+    // 1. Создаем те самые переменные, на которые ругается Render
+    const id = Date.now();
+    const x = e.clientX || (e.touches && e.touches[0].clientX);
+    const y = e.clientY || (e.touches && e.touches[0].clientY);
+
+    // 2. Теперь их можно спокойно использовать здесь
+    setClicks((prev) => [...prev, { id, x, y, value: clickPower }]);
+    setTimeout(() => setClicks((prev) => prev.filter(c => c.id !== id)), 800);
+
+    // 3. Визуальное обновление баланса
     setBalance(prev => prev + clickPower);
 
-    setClicks((prev) => [...prev, { id, x, y, value: clickPower }]);
-    setTimeout(() => setClicks((prev) => prev.filter(c => c.id !== id)), 800)
+    // 4. Запрос на сервер
     try {
         const res = await authorizedFetch('/api/tap', {
             method: 'POST',
@@ -73,14 +81,12 @@ function App() {
         
         if (res.ok) {
             const data = await res.json();
-            // СЕРВЕР СКАЗАЛ — МЫ СДЕЛАЛИ. Ставим точную цифру.
             setBalance(data.balance); 
         }
     } catch (err) {
-        console.error("Ошибка синхронизации клика:", err);
+        console.error("Ошибка синхронизации:", err);
     }
 };
-
   const buyUpgrade = async (type) => {
         try {
             const res = await authorizedFetch(`/api/upgrade/${type}`, {
