@@ -63,9 +63,8 @@ function App() {
     // 1. Оставляем визуальный эффект для скорости
     setBalance(prev => prev + clickPower);
 
-    // ... код анимации частиц (clicks) ...
-
-    // 2. Отправляем запрос и получаем реальный баланс от сервера
+   setClicks((prev) => [...prev, { id, x, y, value: clickPower }]);
+    setTimeout(() => setClicks((prev) => prev.filter(c => c.id !== id)), 800)
     try {
         const res = await authorizedFetch('/api/tap', {
             method: 'POST',
