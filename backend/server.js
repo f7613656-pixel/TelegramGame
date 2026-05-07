@@ -67,16 +67,45 @@ app.get('/api/user/:id', authMiddleware, (req, res) => {
     res.json(players[userId]);
 });
 
-app.post('/api/upgrade/click',  async (req, res) => {
+app.post('/api/upgrade/:type', authMiddleware, (req, res) => {
     const { userId } = req.body;
-    const player = players[userId];
-    if (!player) return res.status(404).send("User not found");
-    const cost = player.clickPower * 100;
-    if (player.balance >= cost) {
-        player.balance -= cost;
-        player.clickPower += 1;
-        res.json(player);
-    } else res.status(400).send("Low balance");
+    const type = req.params.type;
+
+    // 1. Проверяем, существует ли игрок в памяти
+    if (!players[userId]) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+    }
+
+    const user = players[userId];
+    let cost = 0;
+
+    // 2. Рассчитываем стоимость (логика должна совпадать с фронтендом!)
+    if (type === 'click') {
+        cost = user.clickPower * 100;
+    } else if (type === 'passive') {
+        cost = (Math.floor(user.passiveIncome / 5) + 1) * 150;
+    }
+
+    // 3. Проверка баланса
+    if (user.balance < cost) {
+        return res.status(400).json({ message: "Low balance" });
+    }
+
+    // 4. Списание денег и применение эффекта
+    user.balance -= cost;
+    
+    if (type === 'click') {
+        user.clickPower += 1;
+    } else if (type === 'passive') {
+        user.passiveIncome += 5;
+    }
+
+    // 5. Отправляем обновленные данные
+    res.json({
+        balance: user.balance,
+        clickPower: user.clickPower,
+        passiveIncome: user.passiveIncome
+    });
 });
 
 app.post('/api/upgrade/passive',  async(req, res) => {
