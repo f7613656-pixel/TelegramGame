@@ -47,6 +47,14 @@ body {
   color: #fff;
 }
 
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 10px;
+    object-fit: cover;
+}
+
 .nickname { font-weight: 800; font-size: 0.9rem; }
 
 .currency-capsule {
