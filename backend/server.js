@@ -67,7 +67,7 @@ app.get('/api/user/:id', authMiddleware, (req, res) => {
     res.json(players[userId]);
 });
 
-app.post('/api/upgrade/click', authMiddleware, async (req, res) => {
+app.post('/api/upgrade/click',  async (req, res) => {
     const { userId } = req.body;
     const player = players[userId];
     if (!player) return res.status(404).send("User not found");
@@ -79,7 +79,7 @@ app.post('/api/upgrade/click', authMiddleware, async (req, res) => {
     } else res.status(400).send("Low balance");
 });
 
-app.post('/api/upgrade/passive', authMiddleware, async(req, res) => {
+app.post('/api/upgrade/passive',  async(req, res) => {
     const { userId } = req.body;
     const player = players[userId];
     if (!player) return res.status(404).send("User not found");
@@ -92,7 +92,7 @@ app.post('/api/upgrade/passive', authMiddleware, async(req, res) => {
     } else res.status(400).send("Low balance");
 });
 
-app.get('/api/leaderboard', authMiddleware, async (req, res) => {
+app.get('/api/leaderboard',  async (req, res) => {
     // Получаем топ-100 из базы
     const topUsers = await Database.getTop(100); 
     
