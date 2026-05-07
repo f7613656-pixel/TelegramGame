@@ -67,29 +67,36 @@ function App() {
         }).catch(err => console.error("Ошибка сохранения тапа:", err));
     };
 
-   const buyUpgrade = async (type) => {
-        try {
-            const res = await fetch(`${API_URL}/api/upgrade/${type}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: user.id })
-            });
+  const buyUpgrade = async (type) => {
+    try {
+        const res = await fetch(`${API_URL}/api/upgrade/${type}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id })
+        });
 
+        // Если покупка успешна
+        if (res.ok) {
             const data = await res.json();
+            setBalance(Number(data.balance));
+            setClickPower(Number(data.clickPower));
+            setPassiveIncome(Number(data.passiveIncome));
+            return; // Выходим, всё хорошо
+        }
 
-            if (res.ok) {
-                setBalance(Number(data.balance));
-                setClickPower(Number(data.clickPower));
-                setPassiveIncome(Number(data.passiveIncome));
-            } else if (res.status === 400 || res.status === 403) {
-                showNotice("Недостаточно средств");
-            } else {
-                showNotice("Ошибка сервера");
-            }
-        } catch (err) {
-    console.error("Детали ошибки:", err); // Посмотри это в консоли F12
-    showNotice("Нет связи с сервером");
-}
+        // Если денег не хватает (Статус 400)
+        if (res.status === 400) {
+            showNotice("Недостаточно средств");
+        } else {
+            showNotice("Ошибка сервера");
+        }
+
+    } catch (err) {
+        // Сюда попадем только если сервер ВООБЩЕ не ответил (оффлайн)
+        console.error("Ошибка запроса:", err);
+        showNotice("Сервер недоступен");
+    }
+};
     };
 
     return (
