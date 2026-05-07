@@ -12,8 +12,17 @@ function App() {
     const [passiveIncome, setPassiveIncome] = useState(0);
     const [clicks, setClicks] = useState([]);
     const [activeTab, setActiveTab] = useState('home');
-
     const [modal, setModal] = useState({ show: false, message: '' });
+
+
+    // Общая функция для запросов с защитой
+    const authorizedFetch = useCallback(async (endpoint, options = {}) => {
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `tma ${tg.initData}` // Тот самый защитный заголовок
+        };
+        return fetch(`${API_URL}${endpoint}`, { ...options, headers });
+    }, []);
 
     useEffect(() => {
         tg.ready();
@@ -21,18 +30,19 @@ function App() {
         
         const loadData = async () => {
             try {
-                console.log("Запрос данных для пользователя:", user.id);
-                const res = await fetch(`${API_URL}/api/user/${user.id}`);
-                const data = await res.json();
-                setBalance(Number(data.balance));
-                setClickPower(Number(data.clickPower));
-                setPassiveIncome(Number(data.passiveIncome));
+                const res = await authorizedFetch(`/api/user/${user.id}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setBalance(Number(data.balance) || 0);
+                    setClickPower(Number(data.clickPower) || 1);
+                    setPassiveIncome(Number(data.passiveIncome) || 0);
+                }
             } catch (e) {
-                console.error("Ошибка при получении данных:", e);
+                console.error("Ошибка загрузки:", e);
             }
         };
         loadData();
-    }, [user.id]);
+    }, [user.id, authorizedFetch]);
 
     const showNotice = (msg) => {
         setModal({ show: true, message: msg });
@@ -49,8 +59,7 @@ function App() {
         }
     }, [passiveIncome]);
 
-    const handleTap = (e) => {
-        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+   const handleTap = (e) => {
         const newBalance = balance + clickPower;
         setBalance(newBalance);
 
@@ -60,43 +69,34 @@ function App() {
         setClicks((prev) => [...prev, { id, x, y, value: clickPower }]);
         setTimeout(() => setClicks((prev) => prev.filter(c => c.id !== id)), 800);
 
-        fetch(`${API_URL}/api/tap`, {
+        // Сервер сам посчитает баланс, мы просто говорим "был клик"
+        authorizedFetch('/api/tap', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user.id, clientBalance: newBalance })
-        }).catch(err => console.error("Ошибка сохранения тапа:", err));
+            body: JSON.stringify({ userId: user.id })
+        }).catch(err => console.error("Ошибка тапа:", err));
     };
 
-   const buyUpgrade = async (type) => {
-    try {
-        const res = await fetch(`${API_URL}/api/upgrade/${type}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user.id })
-        });
+  const buyUpgrade = async (type) => {
+        try {
+            const res = await authorizedFetch(`/api/upgrade/${type}`, {
+                method: 'POST',
+                body: JSON.stringify({ userId: user.id })
+            });
 
-        // Если покупка успешна
-        if (res.ok) {
-            const data = await res.json();
-            setBalance(Number(data.balance));
-            setClickPower(Number(data.clickPower));
-            setPassiveIncome(Number(data.passiveIncome));
-            return; // Выходим, всё хорошо
+            if (res.ok) {
+                const data = await res.json();
+                setBalance(Number(data.balance));
+                setClickPower(Number(data.clickPower));
+                setPassiveIncome(Number(data.passiveIncome));
+            } else if (res.status === 400) {
+                showNotice("Недостаточно средств");
+            } else {
+                showNotice("Ошибка сервера");
+            }
+        } catch (err) {
+            showNotice("Сервер недоступен");
         }
-
-        // Если денег не хватает (Статус 400)
-        if (res.status === 400) {
-            showNotice("Недостаточно средств");
-        } else {
-            showNotice("Ошибка сервера");
-        }
-
-    } catch (err) {
-        // Сюда попадем только если сервер ВООБЩЕ не ответил (оффлайн)
-        console.error("Ошибка запроса:", err);
-        showNotice("Сервер недоступен");
-    }
-};
+    };
 
     return (
         <div className="App">
