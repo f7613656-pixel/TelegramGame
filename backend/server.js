@@ -67,7 +67,7 @@ app.get('/api/user/:id', authMiddleware, (req, res) => {
     res.json(players[userId]);
 });
 
-app.post('/api/upgrade/:type', authMiddleware, (req, res) => {
+app.post('/api/upgrade/click', authMiddleware, (req, res) => {
     const { userId } = req.body;
     const type = req.params.type;
 
@@ -108,7 +108,7 @@ app.post('/api/upgrade/:type', authMiddleware, (req, res) => {
     });
 });
 
-app.post('/api/upgrade/passive',  async(req, res) => {
+app.post('/api/upgrade/passive', authMiddleware,(req, res) => {
     const { userId } = req.body;
     const player = players[userId];
     if (!player) return res.status(404).send("User not found");
