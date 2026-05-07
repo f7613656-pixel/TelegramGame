@@ -96,35 +96,59 @@ body {
   100% { transform: translateY(-130px); opacity: 0; }
 }
 
-/* ПЛАВАЮЩЕЕ НАВИГАЦИОННОЕ МЕНЮ */
+/* ПЛАВАЮЩЕЕ НАВИГАЦИОННОЕ МЕНЮ (КОМПАКТНОЕ) */
 .navbar-container {
   position: fixed;
-  bottom: 25px; /* ОТСТУП ОТ САМОГО НИЗА ЭКРАНА (ТО САМОЕ РАССТОЯНИЕ) */
+  bottom: 20px; /* Немного опустил для лучшего баланса */
   width: 100%;
   display: flex;
   justify-content: center;
   z-index: 1000;
-  pointer-events: none; /* Пропускаем нажатия сквозь контейнер */
+  pointer-events: none;
 }
 
 .navbar {
-  width: 90%; /* Меню теперь не на весь экран */
-  height: 70px;
-  background: rgba(15, 15, 15, 0.8);
-  backdrop-filter: blur(15px); /* Сильное размытие фона */
-  border-radius: 25px; /* Скругленные края */
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: 75%; /* УМЕНЬШИЛИ ШИРИНУ (было 90%) */
+  height: 64px; /* Чуть уменьшили высоту для компактности */
+  background: rgba(20, 20, 20, 0.85);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   justify-content: space-around;
   align-items: center;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-  pointer-events: auto; /* Возвращаем нажатия кнопкам */
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  pointer-events: auto;
+  padding: 0 10px;
 }
 
 .navbar button {
-  background: none; border: none; color: #555;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  flex: 1; outline: none;
+  background: none;
+  border: none;
+  color: #555;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+  outline: none;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
 }
-.navbar button.active { color: var(--accent); }
-.navbar span { font-size: 10px; font-weight: bold; text-transform: uppercase; }
+
+.navbar button.active {
+  color: var(--accent);
+  transform: translateY(-2px); /* Легкий эффект приподнятости активной кнопки */
+}
+
+.navbar button svg {
+  width: 20px; /* Чуть уменьшили иконки под узкий бар */
+  height: 20px;
+}
+
+.navbar span {
+  font-size: 9px; /* Сделали шрифт чуть меньше, чтобы всё влезло */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}

@@ -3,7 +3,7 @@ import './App.css';
 
 const tg = window.Telegram.WebApp;
 // ВАЖНО: Замени на свою актуальную ссылку с Render!
-const API_URL = 'https://твой-бэкенд.onrender.com'; 
+const API_URL = 'https://telegramgame-1.onrender.com'; 
 
 function App() {
     const [user] = useState(tg.initDataUnsafe?.user || { id: '000000', first_name: 'User' });
