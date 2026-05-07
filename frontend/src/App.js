@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect} from 'react';
 import './App.css';
 
 // Инициализация Telegram WebApp SDK
@@ -78,7 +78,7 @@ function App() {
                 setPassiveIncome(Number(data.passiveIncome));
                 tg.HapticFeedback.notificationOccurred('success');
             } else {
-                const errorText = await res.text();
+                
                 tg.showAlert(`Недостаточно монет!`);
             }
         } catch (err) {
