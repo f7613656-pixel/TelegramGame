@@ -59,22 +59,28 @@ function App() {
         }
     }, [passiveIncome]);
 
-   const handleTap = (e) => {
-        const newBalance = balance + clickPower;
-        setBalance(newBalance);
+   const handleTap = async (e) => {
+    // 1. Оставляем визуальный эффект для скорости
+    setBalance(prev => prev + clickPower);
 
-        const id = Date.now();
-        const x = e.clientX || (e.touches && e.touches[0].clientX);
-        const y = e.clientY || (e.touches && e.touches[0].clientY);
-        setClicks((prev) => [...prev, { id, x, y, value: clickPower }]);
-        setTimeout(() => setClicks((prev) => prev.filter(c => c.id !== id)), 800);
+    // ... код анимации частиц (clicks) ...
 
-        // Сервер сам посчитает баланс, мы просто говорим "был клик"
-        authorizedFetch('/api/tap', {
+    // 2. Отправляем запрос и получаем реальный баланс от сервера
+    try {
+        const res = await authorizedFetch('/api/tap', {
             method: 'POST',
             body: JSON.stringify({ userId: user.id })
-        }).catch(err => console.error("Ошибка тапа:", err));
-    };
+        });
+        
+        if (res.ok) {
+            const data = await res.json();
+            // СЕРВЕР СКАЗАЛ — МЫ СДЕЛАЛИ. Ставим точную цифру.
+            setBalance(data.balance); 
+        }
+    } catch (err) {
+        console.error("Ошибка синхронизации клика:", err);
+    }
+};
 
   const buyUpgrade = async (type) => {
         try {

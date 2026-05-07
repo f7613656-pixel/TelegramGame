@@ -67,7 +67,9 @@ app.post('/api/tap', authMiddleware, (req, res) => {
     if (!player) return res.status(404).send('User not found');
 
     player.balance += player.clickPower;
-    res.json({ balance: player.balance });
+    
+    // Возвращаем ВЕСЬ объект игрока, чтобы фронт обновился полностью
+    res.json(player); 
 });
 
 // 3. Универсальный маршрут для улучшений
