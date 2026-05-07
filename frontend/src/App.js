@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 
 const tg = window.Telegram.WebApp;
-const API_URL = 'https://твой-бэкенд.onrender.com'; // ЗАМЕНИ НА СВОЮ ССЫЛКУ
+// !!! ЗАМЕНИ ЭТО НА СВОЮ ССЫЛКУ ИЗ RENDER !!!
+const API_URL = 'https://telegramgame-1.onrender.com'; 
 
 function App() {
     const [user] = useState(tg.initDataUnsafe?.user || { id: '000000', first_name: 'User' });
@@ -12,6 +13,7 @@ function App() {
     const [clicks, setClicks] = useState([]);
     const [activeTab, setActiveTab] = useState('home');
 
+    // Загрузка данных при старте
     useEffect(() => {
         tg.ready();
         tg.expand();
@@ -19,15 +21,19 @@ function App() {
         const loadData = async () => {
             try {
                 const res = await fetch(`${API_URL}/api/user/${user.id}`);
+                if (!res.ok) throw new Error('Ошибка сервера');
                 const data = await res.json();
-                setBalance(Number(data.balance));
-                setClickPower(Number(data.clickPower));
-                setPassiveIncome(Number(data.passiveIncome));
-            } catch (e) { console.error("Ошибка загрузки"); }
+                setBalance(Number(data.balance) || 0);
+                setClickPower(Number(data.clickPower) || 1);
+                setPassiveIncome(Number(data.passiveIncome) || 0);
+            } catch (e) {
+                console.error("Ошибка загрузки данных:", e);
+            }
         };
         loadData();
     }, [user.id]);
 
+    // Пассивный доход
     useEffect(() => {
         if (passiveIncome > 0) {
             const interval = setInterval(() => {
@@ -52,7 +58,7 @@ function App() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: user.id, clientBalance: newBalance })
-        }).catch(() => {});
+        }).catch(err => console.error("Ошибка тапа:", err));
     };
 
     const buyUpgrade = async (type) => {
@@ -62,16 +68,21 @@ function App() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user.id })
             });
-            const data = await res.json();
+
             if (res.ok) {
+                const data = await res.json();
                 setBalance(Number(data.balance));
                 setClickPower(Number(data.clickPower));
                 setPassiveIncome(Number(data.passiveIncome));
                 if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
             } else {
-                tg.showAlert("Недостаточно монет");
+                const errorData = await res.json();
+                tg.showAlert(errorData.message || "Недостаточно монет");
             }
-        } catch (err) { console.error("Ошибка апгрейда"); }
+        } catch (err) {
+            tg.showAlert("Ошибка: Сервер не отвечает. Проверь API_URL.");
+            console.error("Ошибка апгрейда:", err);
+        }
     };
 
     return (
@@ -126,14 +137,14 @@ function App() {
                             <div className="upg-item" onClick={() => buyUpgrade('click')}>
                                 <div>
                                     <p className="upg-title">Мультитап</p>
-                                    <small>Сила клика увеличится</small>
+                                    <small>Сила клика: {clickPower}</small>
                                 </div>
                                 <div className="upg-cost">{clickPower * 100}</div>
                             </div>
                             <div className="upg-item" onClick={() => buyUpgrade('passive')}>
                                 <div>
                                     <p className="upg-title">Авто-доход</p>
-                                    <small>Пассивный майнинг</small>
+                                    <small>Майнинг: {passiveIncome}/с</small>
                                 </div>
                                 <div className="upg-cost">{(Math.floor(passiveIncome / 5) + 1) * 150}</div>
                             </div>
@@ -155,7 +166,9 @@ function App() {
                                 {user.photo_url ? <img src={user.photo_url} alt="" /> : user.first_name[0]}
                             </div>
                             <h1>{user.first_name}</h1>
-                            <code className="user-id-badge">ID: {user.id}</code>
+                            <div className="id-container">
+                                <code className="user-id-badge">ID: {user.id}</code>
+                            </div>
                         </div>
                     </div>
                 )}

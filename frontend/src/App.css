@@ -9,9 +9,8 @@ body {
   margin: 0;
   background-color: var(--bg);
   color: white;
-  font-family: sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
   overflow: hidden;
-  /* УБИРАЕМ ВЫДЕЛЕНИЕ ПРИ НАЖАТИИ */
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
@@ -51,7 +50,7 @@ body {
 .stat-box small { display: block; font-size: 9px; color: #666; margin-bottom: 3px; }
 .stat-box strong { color: var(--accent); }
 
-/* OLD SCHOOL BUTTON */
+/* CLICK BUTTON */
 .click-zone { height: 45vh; display: flex; justify-content: center; align-items: center; }
 .old-school-button {
   width: 200px; height: 200px; border-radius: 50%;
@@ -65,8 +64,7 @@ body {
   width: 170px; height: 170px; border-radius: 50%;
   background: radial-gradient(circle, #252525, #0a0a0a);
   display: flex; justify-content: center; align-items: center;
-  border: 2px solid #333;
-  transition: transform 0.05s;
+  border: 2px solid #333; transition: transform 0.05s;
 }
 .old-school-button:active .button-inner { transform: scale(0.94); }
 .button-inner span { font-size: 24px; font-weight: 900; color: var(--accent); letter-spacing: 2px; }
@@ -81,14 +79,16 @@ body {
 .upg-title { margin: 0; font-weight: bold; }
 .upg-cost { background: white; color: black; padding: 6px 12px; border-radius: 8px; font-weight: 900; }
 
-/* PROFILE (CENTERED) */
+/* PROFILE CENTERED */
 .tab-profile { text-align: center; padding-top: 50px; }
+.profile-hero { display: flex; flex-direction: column; align-items: center; }
 .profile-avatar {
   width: 110px; height: 110px; border-radius: 50%;
-  background: #222; margin: 0 auto 20px; overflow: hidden;
+  background: #222; margin-bottom: 20px; overflow: hidden;
   display: flex; align-items: center; justify-content: center; font-size: 40px;
 }
 .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.id-container { width: 100%; display: flex; justify-content: center; }
 .user-id-badge {
   display: inline-block; background: #1a1a1a; padding: 5px 15px;
   border-radius: 8px; color: #666; font-family: monospace; margin-top: 10px;
@@ -104,15 +104,21 @@ body {
   100% { transform: translateY(-120px); opacity: 0; }
 }
 
-/* NAVBAR */
+/* NAVBAR (TRANSPARENT) */
 .navbar {
   position: fixed; bottom: 0; width: 100%; height: 75px;
-  background: var(--panel); display: flex; justify-content: space-around;
-  border-top: 1px solid #222;
+  /* УБРАЛИ ФОН, СДЕЛАЛИ ПРОЗРАЧНЫМ */
+  background: rgba(0, 0, 0, 0.4); 
+  backdrop-filter: blur(5px); /* Легкое размытие для стиля */
+  display: flex; justify-content: space-around;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 .navbar button {
   background: none; border: none; color: #555;
   display: flex; flex-direction: column; align-items: center; gap: 5px;
+  /* УБИРАЕМ СИНЕЕ ВЫДЕЛЕНИЕ ПРИ НАЖАТИИ */
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
 }
 .navbar button.active { color: var(--accent); }
 .navbar span { font-size: 10px; font-weight: bold; }
