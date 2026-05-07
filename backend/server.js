@@ -1,5 +1,5 @@
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
 
 const express = require('express');
 const cors = require('cors');
@@ -7,6 +7,8 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+const PORT = process.env.PORT || 3001;
 
 let players = {
     "test_user": { 
@@ -79,4 +81,4 @@ app.get('/api/top', (req, res) => {
     res.json(top);
 });
 
-app.listen(3001, () => console.log('Server is running on port 3001'));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
