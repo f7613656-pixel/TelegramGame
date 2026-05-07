@@ -97,7 +97,7 @@ function App() {
         </div>
         
         <div className="balance-pill">
-    <div className="coin-dot"></div>
+    <div className="crystal-icon"></div>
     <span className="balance-value">{Math.floor(balance).toLocaleString()}</span>
 </div>
     </div>
