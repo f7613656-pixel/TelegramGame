@@ -59,6 +59,19 @@ app.get('/api/user/:id', authMiddleware, (req, res) => {
     res.json(players[userId]);
 });
 
+app.post('/api/sync', authMiddleware, (req, res) => {
+    const { userId, clicksCount } = req.body; // Получаем количество кликов
+    const player = players[userId];
+
+    if (!player) return res.status(404).send('User not found');
+
+    // Начисляем сразу всю пачку кликов
+    const totalAdded = player.clickPower * (clicksCount || 0);
+    player.balance += totalAdded;
+
+    res.json(player);
+});
+
 // 2. Обработка клика
 app.post('/api/tap', authMiddleware, (req, res) => {
     const { userId } = req.body;

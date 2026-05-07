@@ -13,7 +13,7 @@ function App() {
     const [clicks, setClicks] = useState([]);
     const [activeTab, setActiveTab] = useState('home');
     const [modal, setModal] = useState({ show: false, message: '' });
-
+    const [clickBuffer, setClickBuffer] = useState(0);
 
     // Общая функция для запросов с защитой
     const authorizedFetch = useCallback(async (endpoint, options = {}) => {
@@ -59,34 +59,51 @@ function App() {
         }
     }, [passiveIncome]);
 
-   const handleTap = async (e) => {
-    // 1. Создаем те самые переменные, на которые ругается Render
+   const handleTap = (e) => {
+    // 1. Визуальный эффект и мгновенное прибавление в UI
+    setBalance(prev => prev + clickPower);
+    setClickBuffer(prev => prev + 1); // Добавляем клик в копилку для сервера
+
+    // 2. Анимация цифр (если нужна)
     const id = Date.now();
     const x = e.clientX || (e.touches && e.touches[0].clientX);
     const y = e.clientY || (e.touches && e.touches[0].clientY);
-
-    // 2. Теперь их можно спокойно использовать здесь
-    setClicks((prev) => [...prev, { id, x, y, value: clickPower }]);
-    setTimeout(() => setClicks((prev) => prev.filter(c => c.id !== id)), 800);
-
-    // 3. Визуальное обновление баланса
-    setBalance(prev => prev + clickPower);
-
-    // 4. Запрос на сервер
-    try {
-        const res = await authorizedFetch('/api/tap', {
-            method: 'POST',
-            body: JSON.stringify({ userId: user.id })
-        });
-        
-        if (res.ok) {
-            const data = await res.json();
-            setBalance(data.balance); 
-        }
-    } catch (err) {
-        console.error("Ошибка синхронизации:", err);
-    }
+    setClicks(prev => [...prev, { id, x, y, value: clickPower }]);
+    setTimeout(() => setClicks(prev => prev.filter(c => c.id !== id)), 800);
 };
+
+useEffect(() => {
+    const syncInterval = setInterval(async () => {
+        // Если в копилке есть клики — отправляем их
+        if (clickBuffer > 0) {
+            const currentClicks = clickBuffer;
+            setClickBuffer(0); // Очищаем копилку перед запросом
+
+            try {
+                const res = await authorizedFetch('/api/sync', {
+                    method: 'POST',
+                    body: JSON.stringify({ 
+                        userId: user.id, 
+                        clicksCount: currentClicks 
+                    })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    setBalance(data.balance); // Синхронизируем итоговый баланс
+                } else {
+                    // Если ошибка — возвращаем клики в копилку, чтобы не потерять
+                    setClickBuffer(prev => prev + currentClicks);
+                }
+            } catch (err) {
+                setClickBuffer(prev => prev + currentClicks);
+                console.error("Ошибка синхронизации:", err);
+            }
+        }
+    }, 2000); // Отправляем раз в 2 секунды
+
+    return () => clearInterval(syncInterval);
+}, [clickBuffer, user.id, authorizedFetch]);
   const buyUpgrade = async (type) => {
         try {
             const res = await authorizedFetch(`/api/upgrade/${type}`, {
