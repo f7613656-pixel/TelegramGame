@@ -16,13 +16,15 @@ function verifyTelegramWebAppData(initData) {
     const hash = urlParams.get('hash');
     urlParams.delete('hash');
     urlParams.sort();
-    let dataCheckString = '';
-    for (const [key, value] of urlParams.entries()) {
-        dataCheckString += `${key}=${value}\n`;
-    }
-    dataCheckString = dataCheckString.slice(0, -1);
+    
+    // Собираем строку данных
+    const dataCheckString = Array.from(urlParams.entries())
+        .map(([key, value]) => `${key}=${value}`)
+        .join('\n');
+
     const secret = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
     const _hash = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
+    
     return _hash === hash;
 }
 
