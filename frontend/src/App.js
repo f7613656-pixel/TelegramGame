@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 
 const tg = window.Telegram.WebApp;
-// !!! ЗАМЕНИ ЭТО НА СВОЮ ССЫЛКУ ИЗ RENDER !!!
-const API_URL = 'https://telegramgame-1.onrender.com'; 
+// ВАЖНО: Замени на свою актуальную ссылку с Render!
+const API_URL = 'https://твой-бэкенд.onrender.com'; 
 
 function App() {
     const [user] = useState(tg.initDataUnsafe?.user || { id: '000000', first_name: 'User' });
@@ -13,27 +13,25 @@ function App() {
     const [clicks, setClicks] = useState([]);
     const [activeTab, setActiveTab] = useState('home');
 
-    // Загрузка данных при старте
     useEffect(() => {
         tg.ready();
         tg.expand();
         
         const loadData = async () => {
             try {
+                console.log("Запрос данных для пользователя:", user.id);
                 const res = await fetch(`${API_URL}/api/user/${user.id}`);
-                if (!res.ok) throw new Error('Ошибка сервера');
                 const data = await res.json();
-                setBalance(Number(data.balance) || 0);
-                setClickPower(Number(data.clickPower) || 1);
-                setPassiveIncome(Number(data.passiveIncome) || 0);
+                setBalance(Number(data.balance));
+                setClickPower(Number(data.clickPower));
+                setPassiveIncome(Number(data.passiveIncome));
             } catch (e) {
-                console.error("Ошибка загрузки данных:", e);
+                console.error("Ошибка при получении данных:", e);
             }
         };
         loadData();
     }, [user.id]);
 
-    // Пассивный доход
     useEffect(() => {
         if (passiveIncome > 0) {
             const interval = setInterval(() => {
@@ -58,10 +56,11 @@ function App() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: user.id, clientBalance: newBalance })
-        }).catch(err => console.error("Ошибка тапа:", err));
+        }).catch(err => console.error("Ошибка сохранения тапа:", err));
     };
 
     const buyUpgrade = async (type) => {
+        console.log("Попытка покупки апгрейда:", type);
         try {
             const res = await fetch(`${API_URL}/api/upgrade/${type}`, {
                 method: 'POST',
@@ -71,17 +70,18 @@ function App() {
 
             if (res.ok) {
                 const data = await res.json();
+                console.log("Апгрейд успешен:", data);
                 setBalance(Number(data.balance));
                 setClickPower(Number(data.clickPower));
                 setPassiveIncome(Number(data.passiveIncome));
                 if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
             } else {
-                const errorData = await res.json();
-                tg.showAlert(errorData.message || "Недостаточно монет");
+                const error = await res.json();
+                tg.showAlert(error.message || "Не хватает монет");
             }
         } catch (err) {
-            tg.showAlert("Ошибка: Сервер не отвечает. Проверь API_URL.");
-            console.error("Ошибка апгрейда:", err);
+            console.error("Ошибка соединения с сервером:", err);
+            tg.showAlert("Сервер не отвечает. Проверь API_URL.");
         }
     };
 
@@ -109,7 +109,7 @@ function App() {
                                 <strong>+{clickPower}</strong>
                             </div>
                             <div className="stat-box">
-                                <small>В СЕКУНДУ</small>
+                                <small>ДОХОД / С</small>
                                 <strong>+{passiveIncome}</strong>
                             </div>
                         </div>
@@ -137,7 +137,7 @@ function App() {
                             <div className="upg-item" onClick={() => buyUpgrade('click')}>
                                 <div>
                                     <p className="upg-title">Мультитап</p>
-                                    <small>Сила клика: {clickPower}</small>
+                                    <small>Ур. {clickPower}</small>
                                 </div>
                                 <div className="upg-cost">{clickPower * 100}</div>
                             </div>
@@ -155,7 +155,7 @@ function App() {
                 {activeTab === 'top' && (
                     <div className="tab-placeholder">
                         <h2>ТОП ИГРОКОВ</h2>
-                        <p>Скоро здесь будет таблица лидеров!</p>
+                        <p>В разработке...</p>
                     </div>
                 )}
 
@@ -174,23 +174,26 @@ function App() {
                 )}
             </div>
 
-            <nav className="navbar">
-                <button className={activeTab === 'home' ? 'active' : ''} onClick={() => setActiveTab('home')}>
-                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-                    <span>Главная</span>
-                </button>
-                <button className={activeTab === 'shop' ? 'active' : ''} onClick={() => setActiveTab('shop')}>
-                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
-                    <span>Магазин</span>
-                </button>
-                <button className={activeTab === 'top' ? 'active' : ''} onClick={() => setActiveTab('top')}>
-                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M16 11V3H8v8H2v10h20V11h-6zM10 5h4v14h-4V5zm-6 8h4v6H4v-6zm16 6h-4v-6h4v6z"/></svg>
-                    <span>Топы</span>
-                </button>
-                <button className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}>
-                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                    <span>Профиль</span>
-                </button>
+            {/* ОБНОВЛЕННАЯ НАВИГАЦИЯ */}
+            <nav className="navbar-container">
+                <div className="navbar">
+                    <button className={activeTab === 'home' ? 'active' : ''} onClick={() => setActiveTab('home')}>
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                        <span>Главная</span>
+                    </button>
+                    <button className={activeTab === 'shop' ? 'active' : ''} onClick={() => setActiveTab('shop')}>
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                        <span>Магазин</span>
+                    </button>
+                    <button className={activeTab === 'top' ? 'active' : ''} onClick={() => setActiveTab('top')}>
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M16 11V3H8v8H2v10h20V11h-6zM10 5h4v14h-4V5zm-6 8h4v6H4v-6zm16 6h-4v-6h4v6z"/></svg>
+                        <span>Топы</span>
+                    </button>
+                    <button className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}>
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                        <span>Профиль</span>
+                    </button>
+                </div>
             </nav>
         </div>
     );
