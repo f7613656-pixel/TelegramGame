@@ -67,7 +67,7 @@ function App() {
         }).catch(err => console.error("Ошибка сохранения тапа:", err));
     };
 
-  const buyUpgrade = async (type) => {
+   const buyUpgrade = async (type) => {
     try {
         const res = await fetch(`${API_URL}/api/upgrade/${type}`, {
             method: 'POST',
@@ -97,7 +97,6 @@ function App() {
         showNotice("Сервер недоступен");
     }
 };
-    };
 
     return (
         <div className="App">
