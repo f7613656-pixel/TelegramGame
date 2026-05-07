@@ -116,11 +116,7 @@ function App() {
                 </div>
 
                 <div className="main-button" onClick={handleTap}>
-                    <img 
-                        src="https://img.freepik.com/free-vector/banana-cartoon-style_1308-100234.jpg" 
-                        alt="banana" 
-                        className="banana-img"
-                    />
+                    
                 </div>
             </div>
 
