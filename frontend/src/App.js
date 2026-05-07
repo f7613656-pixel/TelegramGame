@@ -107,15 +107,21 @@ function App() {
                 {activeTab === 'home' && (
                     <div className="tab-home">
                         <div className="stats-grid">
-                            <div className="stat-box">
-                                <small>КЛИК</small>
-                                <strong>+{clickPower}</strong>
-                            </div>
-                            <div className="stat-box">
-                                <small>ДОХОД / С</small>
-                                <strong>+{passiveIncome}</strong>
-                            </div>
-                        </div>
+    <div className="stat-card tap-style">
+        <div className="stat-indicator"></div>
+        <div className="stat-info">
+            <small>КЛИК</small>
+            <strong>+{clickPower}</strong>
+        </div>
+    </div>
+    <div className="stat-card passive-style">
+        <div className="stat-indicator"></div>
+        <div className="stat-info">
+            <small>ДОХОД / С</small>
+            <strong>+{passiveIncome}</strong>
+        </div>
+    </div>
+</div>
 
                         <div className="click-zone">
                             <div className="old-school-button" onClick={handleTap}>

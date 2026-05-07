@@ -129,13 +129,84 @@ body {
 /* CONTENT */
 .content { height: calc(100vh - 160px); overflow-y: auto; padding-bottom: 20px; }
 
-/* STATS */
-.stats-grid { display: flex; gap: 10px; padding: 20px; }
-.stat-box {
-  flex: 1; background: var(--panel); padding: 12px; border-radius: 12px; text-align: center; border: 1px solid #222;
+/* СЕТКА СТАТИСТИКИ */
+.stats-grid {
+  display: flex;
+  gap: 12px;
+  padding: 10px 16px;
+  margin-top: 5px;
 }
-.stat-box small { display: block; font-size: 9px; color: #666; margin-bottom: 4px; font-weight: bold; }
-.stat-box strong { color: var(--accent); font-size: 16px; }
+
+.stat-card {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(20, 20, 20, 0.8);
+  padding: 12px 15px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+}
+
+/* Цветовой индикатор слева */
+.stat-indicator {
+  width: 3px;
+  height: 24px;
+  border-radius: 2px;
+}
+
+/* Стиль для клика (голубой под кристалл) */
+.tap-style .stat-indicator {
+  background: #00f2ff;
+  box-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
+}
+
+/* Стиль для пассивного дохода (фиолетовый) */
+.passive-style .stat-indicator {
+  background: #a200ff;
+  box-shadow: 0 0 10px rgba(162, 0, 255, 0.5);
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-info small {
+  font-size: 9px;
+  font-weight: 800;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 2px;
+}
+
+.stat-info strong {
+  font-size: 17px;
+  font-weight: 900;
+  color: #fff;
+}
+
+/* Индивидуальный цвет цифр для быстрого считывания */
+.tap-style strong {
+  color: #00f2ff;
+}
+
+.passive-style strong {
+  color: #a200ff;
+}
+
+/* Тонкий блик сверху карточки */
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+}
 
 /* TAP BUTTON */
 .click-zone { height: 40vh; display: flex; justify-content: center; align-items: center; }
