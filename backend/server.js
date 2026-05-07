@@ -31,15 +31,14 @@ function verifyTelegramWebAppData(initData) {
 // --- MIDDLEWARE ЗАЩИТЫ ---
 const authMiddleware = (req, res, next) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('tma ')) {
+    const initData = authHeader.split(' ')[1];
+    const isValid = verifyTelegramWebAppData(initData);
+    
+    if (!isValid) {
+        console.log("Ошибка проверки initData!"); // Это появится в логах Render
         return res.status(401).send('Unauthorized');
     }
-    const initData = authHeader.split(' ')[1];
-    if (verifyTelegramWebAppData(initData)) {
-        next(); // Всё ок, идем дальше
-    } else {
-        res.status(403).send('Forbidden');
-    }
+    next();
 };
 
 // --- МАРШРУТЫ (С ПРИМЕНЕНИЕМ ЗАЩИТЫ) ---
