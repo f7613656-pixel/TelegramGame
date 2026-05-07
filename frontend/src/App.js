@@ -125,16 +125,17 @@ function App() {
 
                         <div className="game-area">
     <div className="click-wrapper" onClick={handleTap}>
-        <div className="crystal-button">
+        <div className="neo-circle-button">
             <div className="core-icon">
+                {/* SVG Молнии */}
                 <svg viewBox="0 0 24 24" fill="none" stroke="#00f2ff" strokeWidth="2">
                     <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
             </div>
-            {/* Декоративные слои для объема */}
-            <div className="ring-1"></div>
-            <div className="ring-2"></div>
         </div>
+        {/* Вращающиеся кольца оставляем снаружи кнопки */}
+        <div className="ring-1"></div>
+        <div className="ring-2"></div>
     </div>
 </div>
 
