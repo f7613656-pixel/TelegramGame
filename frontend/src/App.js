@@ -88,17 +88,20 @@ function App() {
     return (
         <div className="App">
             <header className="main-header">
-                <div className="header-user">
-                    <div className="mini-avatar">
-                        {user.photo_url ? <img src={user.photo_url} alt="" /> : user.first_name[0]}
-                    </div>
-                    <span>{user.first_name}</span>
-                </div>
-                <div className="header-balance">
-                    <span className="balance-value">{Math.floor(balance).toLocaleString()}</span>
-                    <div className="coin-dot"></div>
-                </div>
-            </header>
+    <div className="header-glass">
+        <div className="user-pill">
+            <div className="mini-avatar">
+                {user.photo_url ? <img src={user.photo_url} alt="" /> : user.first_name[0]}
+            </div>
+            <span className="user-name">{user.first_name}</span>
+        </div>
+        
+        <div className="balance-pill">
+            <div className="coin-glow"></div>
+            <span className="balance-value">{Math.floor(balance).toLocaleString()}</span>
+        </div>
+    </div>
+</header>
 
             <div className="content">
                 {activeTab === 'home' && (
