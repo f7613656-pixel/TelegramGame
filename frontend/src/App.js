@@ -60,30 +60,41 @@ function App() {
     };
 
     const buyUpgrade = async (type) => {
-        console.log("Попытка покупки апгрейда:", type);
-        try {
-            const res = await fetch(`${API_URL}/api/upgrade/${type}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: user.id })
-            });
+    const targetUrl = `${API_URL}/api/upgrade/${type}`;
+    
+    try {
+        const res = await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id })
+        });
 
-            if (res.ok) {
-                const data = await res.json();
-                console.log("Апгрейд успешен:", data);
-                setBalance(Number(data.balance));
-                setClickPower(Number(data.clickPower));
-                setPassiveIncome(Number(data.passiveIncome));
-                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-            } else {
-                const error = await res.json();
-                tg.showAlert(error.message || "Не хватает монет");
-            }
-        } catch (err) {
-            console.error("Ошибка соединения с сервером:", err);
-            tg.showAlert("Сервер не отвечает. Проверь API_URL.");
+        // Если сервер ответил успешно
+        if (res.ok) {
+            const data = await res.json();
+            setBalance(Number(data.balance));
+            setClickPower(Number(data.clickPower));
+            setPassiveIncome(Number(data.passiveIncome));
+            
+            // Легкая вибрация при успешной покупке
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        } 
+        // Если денег не хватает (обычно сервер присылает 400 или 403)
+        else if (res.status === 400 || res.status === 403) {
+            tg.showAlert("Недостаточно средств для улучшения!");
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
         }
-    };
+        // Если произошла какая-то другая ошибка на стороне сервера
+        else {
+            const errorData = await res.json().catch(() => ({}));
+            tg.showAlert(errorData.message || `Ошибка сервера: ${res.status}`);
+        }
+    } catch (err) {
+        // Сюда мы попадаем, только если бэкенд выключен или URL неверный
+        console.error("Критическая ошибка связи:", err);
+        tg.showAlert("Ошибка связи с сервером. Убедитесь, что бэкенд запущен.");
+    }
+};
 
     return (
         <div className="App">
