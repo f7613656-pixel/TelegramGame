@@ -88,13 +88,13 @@ body {
   background: rgba(0, 0, 0, 0.3); /* Очень легкий фон */
   padding: 4px 10px;
   border-radius: 50px;
-  border: 1px solid rgba(241, 196, 15, 0.15); /* Едва заметный контур */
+  border: 1px solid rgba(15, 105, 241, 0.15); /* Едва заметный контур */
 }
 
 /* ИКОНКА КРИСТАЛЛА ВМЕСТО МОНЕТЫ */
 .crystal-icon {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
   background: #00f2ff;
   /* Делаем форму ромба */
   clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
