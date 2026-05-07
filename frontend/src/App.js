@@ -123,13 +123,20 @@ function App() {
     </div>
 </div>
 
-                        <div className="click-zone">
-                            <div className="old-school-button" onClick={handleTap}>
-                                <div className="button-inner">
-                                    <span>TAP</span>
-                                </div>
-                            </div>
-                        </div>
+                        <div className="game-area">
+    <div className="click-wrapper" onClick={handleTap}>
+        <div className="crystal-button">
+            <div className="core-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#00f2ff" strokeWidth="2">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            </div>
+            {/* Декоративные слои для объема */}
+            <div className="ring-1"></div>
+            <div className="ring-2"></div>
+        </div>
+    </div>
+</div>
 
                         {clicks.map(c => (
                             <div key={c.id} className="tap-particle" style={{ left: c.x, top: c.y }}>
