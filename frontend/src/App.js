@@ -97,13 +97,8 @@ function App() {
         </div>
         
         <div className="balance-pill">
-    <div className="coin-icon">
-        <div className="coin-star"></div>
-    </div>
-    <div className="balance-text">
-        <span className="balance-value">{Math.floor(balance).toLocaleString()}</span>
-        <small className="balance-label">COINS</small>
-    </div>
+    <div className="coin-dot"></div>
+    <span className="balance-value">{Math.floor(balance).toLocaleString()}</span>
 </div>
     </div>
 </header>
