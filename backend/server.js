@@ -5,7 +5,8 @@ const crypto = require('crypto'); // Обязательно добавь это�
 require('dotenv').config();
 
 const app = express();
-app.use(express.json()); // Middleware для парсинга JSON
+app.use(cors()); // Должен быть первым!
+app.use(express.json()); // Должен быть вторым!
 
 // --- ПОДКЛЮЧЕНИЕ БД ---
 const pool = new Pool({
