@@ -117,13 +117,14 @@ app.get('/api/user/:id', async (req, res) => {
 app.post('/api/sync', async (req, res) => {
     const { userId, clicks } = req.body;
 
-    // Логируем входящие данные, чтобы понять, что прислал фронтенд
-    console.log(`[SYNC] Запрос от ID: ${userId}, Кликов: ${clicks}`);
-
+    // Если данных нет, пишем в логи сервера, чего именно нет
     if (!userId || clicks === undefined) {
-        return res.status(400).json({ error: "Неполные данные запроса" });
+        console.log(`[!] Ошибка 400. Получено: userId=${userId}, clicks=${clicks}`);
+        return res.status(400).json({ 
+            error: "Неполные данные запроса", 
+            received: { userId: userId || "missing", clicks: clicks ?? "missing" } 
+        });
     }
-
     try {
         // Используем максимально простой запрос для проверки
         const query = `

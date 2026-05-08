@@ -34,38 +34,36 @@ function App() {
 
     // Функция синхронизации кликов
 // Обновленная функция синхронизации
-    const syncWithServer = useCallback(async (forcedClicks = null) => {
-        const clicksToSend = forcedClicks !== null ? forcedClicks : unprocessedClicks;
-        if (clicksToSend === 0) return;
+  const syncWithServer = useCallback(async (forcedClicks = null) => {
+    // 1. Проверяем, есть ли у нас ID пользователя и клики для отправки
+    const clicksToSend = forcedClicks !== null ? forcedClicks : unprocessedClicks;
+    
+    if (!user?.id || clicksToSend <= 0) {
+        // Если юзера нет или кликов 0 — просто выходим, не мучая сервер
+        return; 
+    }
 
-        // Вычисляем актуальный баланс перед отправкой
-        const currentBalance = Math.floor(visualBalance);
+    try {
+        const res = await authorizedFetch('/api/sync', {
+            method: 'POST',
+            body: JSON.stringify({ 
+                userId: user.id.toString(), // Принудительно в строку
+                clicks: Number(clicksToSend) 
+            })
+        });
 
-        try {
-            const res = await authorizedFetch('/api/sync', {
-                method: 'POST',
-                body: JSON.stringify({ 
-                    userId: user.id, 
-                    name: user.first_name || "Игрок", // Обязательно передаем имя
-                    balance: currentBalance           // Обязательно передаем баланс
-                })
-            });
+        const data = await res.json();
 
-            if (res.ok) {
-                const data = await res.json();
-                setUnprocessedClicks(prev => Math.max(0, prev - clicksToSend));
-                setServerData({
-                    balance: Number(data.balance),
-                    lastSync: Number(data.last_sync || data.serverTime || Date.now())
-                });
-                return data;
-            } else {
-                console.error("Сервер ответил ошибкой:", await res.text());
-            }
-        } catch (err) {
-            console.error("Ошибка сети при синхронизации:", err);
+        if (res.ok) {
+            setServerData({ balance: data.balance, lastSync: Date.now() });
+            if (forcedClicks === null) setUnprocessedClicks(0);
+        } else {
+            console.error("Сервер ответил ошибкой:", data.error);
         }
-    }, [unprocessedClicks, user.id, user.first_name, visualBalance, authorizedFetch]);
+    } catch (err) {
+        console.error("Ошибка сети при синхронизации:", err);
+    }
+}, [user, unprocessedClicks]);
 
     // Обновленная функция покупки
     const buyUpgrade = async (type) => {
