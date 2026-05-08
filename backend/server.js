@@ -6,6 +6,38 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const { Pool } = require('pg');
+require('dotenv').config();
+
+// Настройка пула соединений
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false // Обязательно для работы с облачными БД типа Render/Supabase
+  }
+});
+
+// Функция для создания таблицы (выполнится один раз при запуске, если таблицы нет)
+const initDB = async () => {
+  const query = `
+    CREATE TABLE IF NOT EXISTS users (
+      id VARCHAR(50) PRIMARY KEY,
+      name VARCHAR(100),
+      balance NUMERIC DEFAULT 0,
+      click_power INTEGER DEFAULT 1,
+      passive_income INTEGER DEFAULT 0,
+      last_sync BIGINT
+    );
+  `;
+  try {
+    await pool.query(query);
+    console.log("База данных готова к работе");
+  } catch (err) {
+    console.error("Ошибка инициализации БД:", err);
+  }
+};
+
+
 // Твой токен от BotFather
 const BOT_TOKEN = '8782512322:AAE2dwWX7V2PZwFIj3aAFLC-GoszWh0hwiQ';
 
@@ -58,45 +90,42 @@ function getRecalculatedPlayer(player) {
 // --- МАРШРУТЫ ---
 
 // 1. Вход в игру (создание или получение профиля)
-app.get('/api/user/:id', authMiddleware, (req, res) => {
-    const userId = req.params.id;
-
-    if (!players[userId]) {
-        players[userId] = {
-            balance: 0,
-            clickPower: 1,
-            passiveIncome: 0,
-            lastSyncTime: Date.now()
-        };
-    } else {
-        players[userId] = getRecalculatedPlayer(players[userId]);
+app.get('/api/user/:id', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM users WHERE id = $1', [req.params.id]);
+        if (result.rows.length > 0) {
+            res.json(result.rows[0]);
+        } else {
+            res.status(404).send("User not found");
+        }
+    } catch (err) {
+        res.status(500).send("Server error");
     }
-
-    res.json({
-        ...players[userId],
-        serverTime: Date.now() // Отдаем время сервера для синхронизации
-    });
 });
 
 // 2. Синхронизация кликов и пассивного дохода
-app.post('/api/sync', authMiddleware, (req, res) => {
-    const { userId, clicksCount } = req.body;
-    let player = players[userId];
+app.post('/api/sync', async (req, res) => {
+    const { userId, name, balance } = req.body;
+    
+    if (!userId) return res.status(400).send("No user ID");
 
-    if (!player) return res.status(404).send('User not found');
-
-    player = getRecalculatedPlayer(player);
-
-    if (clicksCount > 0) {
-        player.balance += clicksCount * player.clickPower;
+    try {
+        // UPSERT: если юзер есть — обновляем, если нет — создаем
+        const query = `
+            INSERT INTO users (id, name, balance, last_sync)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (id) DO UPDATE
+            SET balance = $3, name = $2, last_sync = $4
+            RETURNING *;
+        `;
+        const values = [userId.toString(), name, balance, Date.now()];
+        const result = await pool.query(query, values);
+        
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("Ошибка при синхронизации:", err);
+        res.status(500).send("Ошибка сохранения");
     }
-
-    res.json({
-        balance: player.balance,
-        clickPower: player.clickPower,
-        passiveIncome: player.passiveIncome,
-        serverTime: Date.now()
-    });
 });
 
 // 3. Покупка улучшений
@@ -147,16 +176,15 @@ app.post('/api/upgrade/:type', authMiddleware, (req, res) => {
 // так как фронтенд использует .map)
 
 
-app.get('/api/leaderboard', (req, res) => {
+app.get('/api/leaderboard', async (req, res) => {
     try {
-        // Сортируем по балансу (от большего к меньшему) перед отправкой
-        const sortedPlayers = [...players].sort((a, b) => b.balance - a.balance);
-        
-        // Отправляем именно JSON
-        res.status(200).json(sortedPlayers);
+        const result = await pool.query(
+            'SELECT name, balance FROM users ORDER BY balance DESC LIMIT 50'
+        );
+        res.json(result.rows); 
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Ошибка на стороне сервера" });
+        console.error("Ошибка БД в топах:", err);
+        res.status(500).json({ error: "Ошибка сервера" });
     }
 });
 
@@ -164,3 +192,4 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
 });
+initDB();
