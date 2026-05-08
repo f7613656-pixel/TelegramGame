@@ -1,17 +1,18 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
+
 const app = express();
-
-const players = {}; // Хранилище в памяти
-
 app.use(cors());
 app.use(express.json());
 
-// Токен бота
+// Твой токен от BotFather
 const BOT_TOKEN = '8782512322:AAE2dwWX7V2PZwFIj3aAFLC-GoszWh0hwiQ';
 
-// --- ПРОВЕРКА ПОДЛИННОСТИ ---
+// База данных в оперативной памяти
+const players = {}; 
+
+// --- ПРОВЕРКА ПОДЛИННОСТИ (TELEGRAM) ---
 function verifyTelegramWebAppData(initData) {
     if (!initData) return false;
     const urlParams = new URLSearchParams(initData);
@@ -29,7 +30,7 @@ function verifyTelegramWebAppData(initData) {
     return _hash === hash;
 }
 
-// --- ЗАЩИТНЫЙ СЛОЙ ---
+// --- MIDDLEWARE ДЛЯ ЗАЩИТЫ ---
 const authMiddleware = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).send('No auth header');
@@ -41,102 +42,107 @@ const authMiddleware = (req, res, next) => {
     next();
 };
 
+// --- ФУНКЦИЯ ПЕРЕРАСЧЕТА (ВРЕМЯ = ДЕНЬГИ) ---
+function getRecalculatedPlayer(player) {
+    const now = Date.now();
+    const elapsedSeconds = (now - player.lastSyncTime) / 1000;
+    
+    // Начисляем пассивный доход за прошедшее время
+    const earnedPassive = elapsedSeconds * player.passiveIncome;
+    player.balance += earnedPassive;
+    player.lastSyncTime = now;
+    
+    return player;
+}
 
 // --- МАРШРУТЫ ---
 
-// 1. Получение данных пользователя (или создание нового)
+// 1. Вход в игру (создание или получение профиля)
 app.get('/api/user/:id', authMiddleware, (req, res) => {
     const userId = req.params.id;
+
     if (!players[userId]) {
         players[userId] = {
             balance: 0,
             clickPower: 1,
             passiveIncome: 0,
-            lastSyncTime: Date.now() // Засекаем время появления игрока
+            lastSyncTime: Date.now()
         };
     } else {
-        updateBalance(players[userId]); // Обновляем доход при входе
+        players[userId] = getRecalculatedPlayer(players[userId]);
     }
-    res.json(players[userId]);
+
+    res.json({
+        ...players[userId],
+        serverTime: Date.now() // Отдаем время сервера для синхронизации
+    });
 });
 
+// 2. Синхронизация кликов и пассивного дохода
 app.post('/api/sync', authMiddleware, (req, res) => {
     const { userId, clicksCount } = req.body;
-    const player = players[userId];
+    let player = players[userId];
+
     if (!player) return res.status(404).send('User not found');
 
-    // Сначала начисляем пассивный доход за прошедшее время
-    updateBalance(player);
+    player = getRecalculatedPlayer(player);
 
-    // Затем добавляем накопленные клики
     if (clicksCount > 0) {
         player.balance += clicksCount * player.clickPower;
     }
 
-    res.json(player);
-});
-// Вспомогательная функция для начисления пассивного дохода
-function updateBalance(player) {
-    const now = Date.now();
-    if (player.lastSyncTime) {
-        // Вычисляем, сколько секунд прошло с последнего обновления
-        const secondsPassed = (now - player.lastSyncTime) / 1000;
-        // Начисляем пассивный доход за это время
-        player.balance += secondsPassed * player.passiveIncome;
-    }
-    player.lastSyncTime = now;
-}
-
-// 2. Обработка клика
-app.post('/api/tap', authMiddleware, (req, res) => {
-    const { userId } = req.body;
-    const player = players[userId];
-
-    if (!player) return res.status(404).send('User not found');
-
-    player.balance += player.clickPower;
-    
-    // Возвращаем ВЕСЬ объект игрока, чтобы фронт обновился полностью
-    res.json(player); 
+    res.json({
+        balance: player.balance,
+        clickPower: player.clickPower,
+        passiveIncome: player.passiveIncome,
+        serverTime: Date.now()
+    });
 });
 
-// ОДИН универсальный маршрут для всех улучшений
+// 3. Покупка улучшений
 app.post('/api/upgrade/:type', authMiddleware, (req, res) => {
-    const { userId } = req.body;
+    const { userId, pendingClicks } = req.body; 
     const type = req.params.type;
-    const player = players[userId];
+    let player = players[userId];
+
     if (!player) return res.status(404).send('User not found');
 
-    updateBalance(player); // Сначала считаем деньги
+    // Сначала актуализируем баланс и добавляем еще не отправленные клики
+    player = getRecalculatedPlayer(player);
+    if (pendingClicks > 0) {
+        player.balance += pendingClicks * player.clickPower;
+    }
 
-    let cost = (type === 'click') ? player.clickPower * 100 : (Math.floor(player.passiveIncome / 5) + 1) * 150;
+    let cost = 0;
+    if (type === 'click') {
+        cost = player.clickPower * 100;
+    } else if (type === 'passive') {
+        const level = Math.floor(player.passiveIncome / 5);
+        cost = (level + 1) * 150;
+    } else {
+        return res.status(400).send('Invalid upgrade type');
+    }
 
     if (player.balance >= cost) {
         player.balance -= cost;
-        if (type === 'click') player.clickPower += 1;
-        else player.passiveIncome += 5;
-        res.json(player);
+        
+        if (type === 'click') {
+            player.clickPower += 1;
+        } else if (type === 'passive') {
+            player.passiveIncome += 5;
+        }
+
+        res.json({
+            balance: player.balance,
+            clickPower: player.clickPower,
+            passiveIncome: player.passiveIncome,
+            serverTime: Date.now()
+        });
     } else {
-        res.status(400).json({ message: "Low balance" });
+        res.status(400).json({ message: "Недостаточно монет" });
     }
 });
 
-// 4. Лидерборд (работает с объектом players в памяти)
-app.get('/api/leaderboard', (req, res) => {
-    const topUsers = Object.values(players)
-        .sort((a, b) => b.balance - a.balance)
-        .slice(0, 10)
-        .map(u => ({
-            name: u.firstName || "Аноним",
-            balance: Math.floor(u.balance)
-        }));
-
-    res.json(topUsers);
-});
-
-
-
-// Запуск
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
