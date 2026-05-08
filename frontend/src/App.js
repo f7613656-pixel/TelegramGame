@@ -2,22 +2,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 
 const tg = window.Telegram.WebApp;
-const API_URL = '[https://telegramgame-1.onrender.com](https://telegramgame-1.onrender.com)';
+const API_URL = 'https://telegramgame-1.onrender.com';
 
 function App() {
-    // Пользователь и навигация
     const [user] = useState(tg.initDataUnsafe?.user || { id: '000000', first_name: 'Игрок', photo_url: '' });
     const [activeTab, setActiveTab] = useState('home');
     const [modal, setModal] = useState({ show: false, message: '' });
     
-    // Игровые данные
     const [clickPower, setClickPower] = useState(1);
     const [passiveIncome, setPassiveIncome] = useState(0);
     const [serverData, setServerData] = useState({ balance: 0, lastSync: Date.now() });
     const [unprocessedClicks, setUnprocessedClicks] = useState(0);
     const [visualBalance, setVisualBalance] = useState(0);
     
-    // UI эффекты
     const [clicks, setClicks] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
 
@@ -34,7 +31,6 @@ function App() {
         return fetch(`${API_URL}${endpoint}`, { ...options, headers });
     }, []);
 
-    // 1. Инициализация (загрузка профиля)
     useEffect(() => {
         tg.ready();
         tg.expand();
@@ -47,15 +43,14 @@ function App() {
                     setClickPower(data.clickPower);
                     setPassiveIncome(data.passiveIncome);
                 }
-            } catch (e) { console.error("Ошибка загрузки:", e); }
+            } catch (e) { console.error(e); }
         };
         loadData();
     }, [user.id, authorizedFetch]);
 
-    // 2. Подгрузка ТОПов (когда открывается вкладка)
     useEffect(() => {
         if (activeTab === 'leaderboard') {
-            const fetchLeaderboard = async () => {
+            const fetchTops = async () => {
                 try {
                     const res = await authorizedFetch('/api/leaderboard');
                     if (res.ok) {
@@ -64,20 +59,16 @@ function App() {
                     }
                 } catch (e) { console.error(e); }
             };
-            fetchLeaderboard();
+            fetchTops();
         }
     }, [activeTab, authorizedFetch]);
 
-    // 3. ПЛАВНЫЙ СЧЕТЧИК (Валюта бежит красиво, 60fps)
     useEffect(() => {
         let animationFrame;
         const updateVisual = () => {
             const now = Date.now();
             const elapsed = Math.max(0, (now - serverData.lastSync) / 1000);
-            
-            // Текущий баланс = Что сказал сервер + Пассив за время ожидания + Клики в руках
             const currentTotal = serverData.balance + (elapsed * passiveIncome) + (unprocessedClicks * clickPower);
-            
             setVisualBalance(currentTotal);
             animationFrame = requestAnimationFrame(updateVisual);
         };
@@ -85,7 +76,6 @@ function App() {
         return () => cancelAnimationFrame(animationFrame);
     }, [serverData, passiveIncome, unprocessedClicks, clickPower]);
 
-    // 4. Синхронизация кликов (раз в 2 секунды)
     useEffect(() => {
         const syncInterval = setInterval(async () => {
             if (unprocessedClicks === 0) return;
@@ -97,37 +87,32 @@ function App() {
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    // Вычитаем только те клики, которые отправили
                     setUnprocessedClicks(prev => Math.max(0, prev - clicksToSend));
                     setServerData({ balance: data.balance, lastSync: data.serverTime });
                 }
-            } catch (err) { console.error("Ошибка синхронизации:", err); }
+            } catch (err) { console.error(err); }
         }, 2000);
         return () => clearInterval(syncInterval);
     }, [unprocessedClicks, user.id, authorizedFetch]);
 
     const handleTap = (e) => {
         setUnprocessedClicks(prev => prev + 1);
-        
-        // Координаты для анимации частиц
         const id = Date.now();
         const x = e.clientX || (e.touches && e.touches[0].clientX);
         const y = e.clientY || (e.touches && e.touches[0].clientY);
-        
         setClicks((prev) => [...prev, { id, x, y, value: clickPower }]);
         setTimeout(() => setClicks((prev) => prev.filter(c => c.id !== id)), 800);
     };
 
     const buyUpgrade = async (type) => {
         try {
-            // Передаем локальные клики перед покупкой для точности баланса
             const res = await authorizedFetch(`/api/upgrade/${type}`, {
                 method: 'POST',
                 body: JSON.stringify({ userId: user.id, pendingClicks: unprocessedClicks })
             });
             if (res.ok) {
                 const data = await res.json();
-                setUnprocessedClicks(0); // Очищаем локальные, они учтены сервером
+                setUnprocessedClicks(0);
                 setServerData({ balance: data.balance, lastSync: data.serverTime });
                 setClickPower(data.clickPower);
                 setPassiveIncome(data.passiveIncome);
@@ -140,18 +125,15 @@ function App() {
 
     return (
         <div className="App">
-            {/* ВЕРХНЕЕ МЕНЮ */}
             <header className="main-header">
                 <div className="header-glass">
                     <div className="user-pill">
-                        <div className="mini-avatar">
-                            {/* Фото профиля гарантированно КРУГЛОЕ */}
-                            {user.photo_url ? <img src={user.photo_url} alt="" style={{borderRadius: '50%'}} /> : user.first_name[0]}
+                        <div className="mini-avatar-wrap">
+                            {user.photo_url ? <img src={user.photo_url} alt="" /> : user.first_name[0]}
                         </div>
-                        <span className="user-name">{user.first_name}</span>
+                        <span className="user-name-top">{user.first_name}</span>
                     </div>
-                    {/* Рамка счетчика валют с кристаллом */}
-                    <div className="balance-pill">
+                    <div className="balance-pill-premium">
                         <div className="crystal-icon"></div>
                         <span className="balance-value">{Math.floor(visualBalance).toLocaleString()}</span>
                     </div>
@@ -161,43 +143,28 @@ function App() {
             <div className="content">
                 {activeTab === 'home' && (
                     <div className="tab-home">
-                        {/* Рамки счетчиков клика и дохода */}
                         <div className="stats-grid">
                             <div className="stat-card tap-style">
                                 <div className="stat-indicator"></div>
-                                <div className="stat-info">
-                                    <small>КЛИК</small>
-                                    <strong>+{clickPower}</strong>
-                                </div>
+                                <div className="stat-info"><small>КЛИК</small><strong>+{clickPower}</strong></div>
                             </div>
                             <div className="stat-card passive-style">
                                 <div className="stat-indicator"></div>
-                                <div className="stat-info">
-                                    <small>ДОХОД / С</small>
-                                    <strong>+{passiveIncome}</strong>
-                                </div>
+                                <div className="stat-info"><small>ДОХОД / С</small><strong>+{passiveIncome}</strong></div>
                             </div>
                         </div>
 
-                        {/* ВОССТАНОВЛЕННАЯ КНОПКА КЛИКА: WRAPPER, НЕОН И КОЛЬЦА */}
                         <div className="game-area">
                             <div className="click-wrapper" onClick={handleTap}>
                                 <div className="neo-circle-button">
-                                    <div className="core-icon-glowing">
-                                        {/* Та самая кастомная молния со свечением */}
-                                        <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="#00f2ff">
-                                            <filter id="glow">
-                                                <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
-                                                <feMerge>
-                                                    <feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/>
-                                                </feMerge>
-                                            </filter>
-                                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" filter="url(#glow)"/>
+                                    <div className="bolt-container">
+                                        <svg viewBox="0 0 24 24" className="svg-bolt-main">
+                                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="#00f2ff" />
                                         </svg>
                                     </div>
                                 </div>
-                                <div className="ring-1"></div>
-                                <div className="ring-2"></div>
+                                <div className="ring-inner"></div>
+                                <div className="ring-outer"></div>
                             </div>
                         </div>
 
@@ -212,17 +179,11 @@ function App() {
                         <h2 className="title">МАГАЗИН</h2>
                         <div className="upg-list">
                             <div className="upg-item" onClick={() => buyUpgrade('click')}>
-                                <div>
-                                    <p className="upg-title">Мультитап</p>
-                                    <small>Текущий уровень: {clickPower}</small>
-                                </div>
+                                <div className="upg-txt"><p>Мультитап</p><small>Lvl {clickPower}</small></div>
                                 <div className="upg-cost">{clickPower * 100}</div>
                             </div>
                             <div className="upg-item" onClick={() => buyUpgrade('passive')}>
-                                <div>
-                                    <p className="upg-title">Авто-майнинг</p>
-                                    <small>Доход: +{passiveIncome}/с</small>
-                                </div>
+                                <div className="upg-txt"><p>Майнинг</p><small>+{passiveIncome}/с</small></div>
                                 <div className="upg-cost">{(Math.floor(passiveIncome / 5) + 1) * 150}</div>
                             </div>
                         </div>
@@ -233,13 +194,13 @@ function App() {
                     <div className="tab-leaderboard">
                         <h2 className="title">ТОПЫ</h2>
                         <div className="leader-list">
-                            {leaderboard.length > 0 ? leaderboard.map((p, i) => (
+                            {leaderboard.map((p, i) => (
                                 <div key={i} className="leader-item">
-                                    <span className="leader-rank">{i + 1}</span>
-                                    <span className="leader-name">{p.name}</span>
-                                    <span className="leader-score">{Math.floor(p.balance).toLocaleString()}</span>
+                                    <span className="rank">#{i + 1}</span>
+                                    <span className="name">{p.name}</span>
+                                    <span className="score">{Math.floor(p.balance).toLocaleString()}</span>
                                 </div>
-                            )) : <p>Загрузка лидеров...</p>}
+                            ))}
                         </div>
                     </div>
                 )}
@@ -247,38 +208,39 @@ function App() {
                 {activeTab === 'profile' && (
                     <div className="tab-profile">
                         <h2 className="title">ПРОФИЛЬ</h2>
-                        <div className="profile-card">
-                            <div className="profile-avatar-big">
-                                {/* Фото профиля гарантированно КРУГЛОЕ */}
-                                {user.photo_url ? <img src={user.photo_url} alt="" style={{borderRadius: '50%'}} /> : user.first_name[0]}
+                        <div className="profile-container">
+                            <div className="profile-avatar-circle">
+                                {user.photo_url ? <img src={user.photo_url} alt="" /> : user.first_name[0]}
                             </div>
-                            <h3 className="profile-name">{user.first_name}</h3>
-                            <p className="profile-id">ID: {user.id}</p>
-                            <div className="divider"></div>
-                            <p>Сила клика: {clickPower}</p>
-                            <p>Пассивный доход: {passiveIncome}/с</p>
+                            <div className="profile-info-frame">
+                                <h3 className="prof-name">{user.first_name}</h3>
+                                <p className="prof-id">ID: {user.id}</p>
+                            </div>
+                            <div className="profile-stats-box">
+                                <div className="p-stat"><span>Сила клика:</span> <strong>{clickPower}</strong></div>
+                                <div className="p-stat"><span>Пассив:</span> <strong>{passiveIncome}/с</strong></div>
+                            </div>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* НАВИГАЦИЯ С КАСТОМНЫМИ ИКОНКАМИ И НАЗВАНИЯМИ */}
             <nav className="navbar-container">
                 <div className="navbar">
                     <button className={activeTab === 'home' ? 'active' : ''} onClick={() => setActiveTab('home')}>
-                        <svg viewBox="0 0 24 24" width="24" height="24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" fill="currentColor"/></svg>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                         <span>Главная</span>
                     </button>
                     <button className={activeTab === 'shop' ? 'active' : ''} onClick={() => setActiveTab('shop')}>
-                        <svg viewBox="0 0 24 24" width="24" height="24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" fill="currentColor"/></svg>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
                         <span>Магазин</span>
                     </button>
                     <button className={activeTab === 'leaderboard' ? 'active' : ''} onClick={() => setActiveTab('leaderboard')}>
-                        <svg viewBox="0 0 24 24" width="24" height="24"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94A5.01 5.01 0 0 0 11 15.9V19H7v2h10v-2h-4v-3.1a5.01 5.01 0 0 0 3.61-2.96C19.08 10.63 21 8.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z" fill="currentColor"/></svg>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
                         <span>Топы</span>
                     </button>
                     <button className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}>
-                        <svg viewBox="0 0 24 24" width="24" height="24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" fill="currentColor"/></svg>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                         <span>Профиль</span>
                     </button>
                 </div>
@@ -286,9 +248,7 @@ function App() {
 
             {modal.show && (
                 <div className="modal-overlay">
-                    <div className="modal-content">
-                        <p>{modal.message}</p>
-                    </div>
+                    <div className="modal-content"><p>{modal.message}</p></div>
                 </div>
             )}
         </div>
