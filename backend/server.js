@@ -17,29 +17,27 @@ const pool = new Pool({
 // Этот код сам починит базу при запуске сервера
 const autoFixDatabase = async () => {
   try {
+    // Внутри кавычек должен быть ТОЛЬКО чистый SQL
     await pool.query(`
-      -- 1. Меняем ID на текст, чтобы длинные Telegram ID не ломали базу
       ALTER TABLE users ALTER COLUMN id TYPE TEXT;
-      
-      -- 2. Добавляем недостающие колонки, если их нет
       ALTER TABLE users ADD COLUMN IF NOT EXISTS balance BIGINT DEFAULT 0;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS click_power INTEGER DEFAULT 1;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS passive_income INTEGER DEFAULT 0;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_sync BIGINT DEFAULT ${Date.now()};
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_sync BIGINT DEFAULT 0;
       
-      -- 3. Исправляем NULL значения (если они уже успели появиться)
       UPDATE users SET balance = 0 WHERE balance IS NULL;
       UPDATE users SET click_power = 1 WHERE click_power IS NULL;
       UPDATE users SET passive_income = 0 WHERE passive_income IS NULL;
-      
-      console.log("✅ БАЗА ДАННЫХ ПРОВЕРЕНА И ИСПРАВЛЕНА");
     `);
+    
+    // console.log должен быть ЗДЕСЬ, вне скобок pool.query
+    console.log("✅ БАЗА ДАННЫХ ПРОВЕРЕНА И ИСПРАВЛЕНА");
   } catch (err) {
     console.error("❌ ОШИБКА ПРИ ФИКСЕ БАЗЫ:", err.message);
   }
 };
-autoFixDatabase();
 
+autoFixDatabase();
 const initDB = async () => {
   const query = `
     CREATE TABLE IF NOT EXISTS users (
