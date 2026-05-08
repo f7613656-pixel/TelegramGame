@@ -122,63 +122,59 @@ app.post('/api/sync', async (req, res) => {
 });
 
 // 3. Покупка улучшений (ПОЛНОСТЬЮ ПЕРЕПИСАНО ПОД БД)
-app.post('/api/upgrade/:type', authMiddleware, async (req, res) => {
-    console.log(`=== ПОКУПКА АПГРЕЙДА (${req.params.type}) ===`);
-    console.log("Данные от игрока:", req.body);
+app.post('/api/upgrade/:type', async (req, res) => {
+    const { userId } = req.body;
+    const { type } = req.params;
 
-    if (!req.body || req.body.userId === undefined) {
-        console.error("Ошибка: нет userId для покупки");
-        return res.status(400).json({ message: "Ошибка передачи данных" });
-    }
-
-    const userId = req.body.userId.toString();
-    const type = req.params.type;
+    console.log(`[UPGRADE] Попытка покупки: ${type} для ID: ${userId}`);
 
     try {
-        const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+        // 1. Проверяем пользователя
+        const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId.toString()]);
         
         if (userRes.rows.length === 0) {
-            console.log("Пользователь не найден в БД:", userId);
-            return res.status(404).json({ message: 'Пользователь не найден. Попробуйте перезайти.' });
+            return res.status(404).json({ message: "Сначала начни играть (ID не найден)" });
         }
-        
-        let user = userRes.rows[0];
+
+        const user = userRes.rows[0];
         let cost = 0;
-        let updateQuery = "";
-        let queryParams = [];
+        let query = "";
+        let params = [];
 
+        // 2. Логика расчета (убедись, что имена колонок в базе именно такие!)
         if (type === 'click') {
-            cost = user.click_power * 100;
+            cost = (user.click_power || 1) * 100;
             if (user.balance < cost) return res.status(400).json({ message: "Недостаточно монет" });
             
-            updateQuery = "UPDATE users SET balance = balance - $1, click_power = click_power + 1 WHERE id = $2 RETURNING *";
-            queryParams = [cost, userId];
-        } else if (type === 'passive') {
-            const level = Math.floor(user.passive_income / 5);
-            cost = (level + 1) * 150;
+            query = `UPDATE users SET balance = balance - $1, click_power = COALESCE(click_power, 1) + 1 WHERE id = $2 RETURNING *`;
+            params = [cost, userId.toString()];
+        } 
+        else if (type === 'passive') {
+            const currentPassive = user.passive_income || 0;
+            cost = (Math.floor(currentPassive / 5) + 1) * 150;
             if (user.balance < cost) return res.status(400).json({ message: "Недостаточно монет" });
             
-            updateQuery = "UPDATE users SET balance = balance - $1, passive_income = passive_income + 5 WHERE id = $2 RETURNING *";
-            queryParams = [cost, userId];
-        } else {
-            return res.status(400).json({ message: 'Неверный тип апгрейда' });
+            query = `UPDATE users SET balance = balance - $1, passive_income = COALESCE(passive_income, 0) + 5 WHERE id = $2 RETURNING *`;
+            params = [cost, userId.toString()];
         }
 
-        const result = await pool.query(updateQuery, queryParams);
-        const updatedUser = result.rows[0];
-
-        console.log("Покупка успешна! Новый баланс:", updatedUser.balance);
+        const result = await pool.query(query, params);
+        const updated = result.rows[0];
 
         res.json({
-            balance: updatedUser.balance,
-            clickPower: updatedUser.click_power,
-            passiveIncome: updatedUser.passive_income,
+            balance: updated.balance,
+            clickPower: updated.click_power,
+            passiveIncome: updated.passive_income,
             serverTime: Date.now()
         });
 
     } catch (err) {
-        console.error("ОШИБКА БД ПРИ ПОКУПКЕ:", err.message);
-        res.status(500).json({ message: "Ошибка базы данных", details: err.message });
+        // ВОТ ТУТ мы увидим реальную причину в логах Render
+        console.error("!!! ОШИБКА БАЗЫ ДАННЫХ:", err.message);
+        res.status(500).json({ 
+            message: "Ошибка базы данных", 
+            details: err.message // Отправляем детали на фронт для отладки
+        });
     }
 });
 
