@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 
+
 const tg = window.Telegram.WebApp;
 const API_URL = 'https://telegramgame-1.onrender.com'; 
 
