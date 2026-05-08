@@ -41,36 +41,51 @@ const authMiddleware = (req, res, next) => {
     next();
 };
 
+
 // --- МАРШРУТЫ ---
 
 // 1. Получение данных пользователя (или создание нового)
 app.get('/api/user/:id', authMiddleware, (req, res) => {
     const userId = req.params.id;
-
     if (!players[userId]) {
         players[userId] = {
-            id: userId,
             balance: 0,
             clickPower: 1,
             passiveIncome: 0,
-            firstName: "Игрок" // Можно передавать из фронта при первом входе
+            lastSyncTime: Date.now() // Засекаем время появления игрока
         };
+    } else {
+        updateBalance(players[userId]); // Обновляем доход при входе
     }
     res.json(players[userId]);
 });
 
 app.post('/api/sync', authMiddleware, (req, res) => {
-    const { userId, clicksCount } = req.body; // Получаем количество кликов
+    const { userId, clicksCount } = req.body;
     const player = players[userId];
-
     if (!player) return res.status(404).send('User not found');
 
-    // Начисляем сразу всю пачку кликов
-    const totalAdded = player.clickPower * (clicksCount || 0);
-    player.balance += totalAdded;
+    // Сначала начисляем пассивный доход за прошедшее время
+    updateBalance(player);
+
+    // Затем добавляем накопленные клики
+    if (clicksCount > 0) {
+        player.balance += clicksCount * player.clickPower;
+    }
 
     res.json(player);
 });
+// Вспомогательная функция для начисления пассивного дохода
+function updateBalance(player) {
+    const now = Date.now();
+    if (player.lastSyncTime) {
+        // Вычисляем, сколько секунд прошло с последнего обновления
+        const secondsPassed = (now - player.lastSyncTime) / 1000;
+        // Начисляем пассивный доход за это время
+        player.balance += secondsPassed * player.passiveIncome;
+    }
+    player.lastSyncTime = now;
+}
 
 // 2. Обработка клика
 app.post('/api/tap', authMiddleware, (req, res) => {
@@ -88,39 +103,19 @@ app.post('/api/tap', authMiddleware, (req, res) => {
 // ОДИН универсальный маршрут для всех улучшений
 app.post('/api/upgrade/:type', authMiddleware, (req, res) => {
     const { userId } = req.body;
-    const type = req.params.type; // Теперь это 'click' или 'passive'
+    const type = req.params.type;
     const player = players[userId];
+    if (!player) return res.status(404).send('User not found');
 
-    // Если игрока нет в памяти (например, сервер перезагрузился)
-    if (!player) {
-        return res.status(404).json({ message: "User not found. Please refresh." });
-    }
+    updateBalance(player); // Сначала считаем деньги
 
-    let cost = 0;
+    let cost = (type === 'click') ? player.clickPower * 100 : (Math.floor(player.passiveIncome / 5) + 1) * 150;
 
-    // Рассчитываем цену
-    if (type === 'click') {
-        cost = player.clickPower * 100;
-    } else if (type === 'passive') {
-        // Уровни пассива считаем кратно 5
-        const level = Math.floor(player.passiveIncome / 5);
-        cost = (level + 1) * 150;
-    } else {
-        return res.status(400).json({ message: "Invalid upgrade type" });
-    }
-
-    // Проверка денег
     if (player.balance >= cost) {
         player.balance -= cost;
-        
-        if (type === 'click') {
-            player.clickPower += 1;
-        } else if (type === 'passive') {
-            player.passiveIncome += 5;
-        }
-
-        console.log(`Игрок ${userId} купил ${type}. Новый баланс: ${player.balance}`);
-        res.json(player); // Отправляем обновленного игрока целиком
+        if (type === 'click') player.clickPower += 1;
+        else player.passiveIncome += 5;
+        res.json(player);
     } else {
         res.status(400).json({ message: "Low balance" });
     }
@@ -138,6 +133,8 @@ app.get('/api/leaderboard', (req, res) => {
 
     res.json(topUsers);
 });
+
+
 
 // Запуск
 const PORT = process.env.PORT || 10000;

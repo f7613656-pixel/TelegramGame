@@ -24,6 +24,8 @@ function App() {
         return fetch(`${API_URL}${endpoint}`, { ...options, headers });
     }, []);
 
+    
+
     useEffect(() => {
         tg.ready();
         tg.expand();
