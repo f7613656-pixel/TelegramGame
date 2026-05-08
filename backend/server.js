@@ -1,23 +1,17 @@
+// 1. Импорты
 const express = require('express');
-const cors = require('cors');
-const crypto = require('crypto');
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
 const { Pool } = require('pg');
 require('dotenv').config();
 
-// Настройка пула соединений
+const app = express();
+
+// 2. Настройка подключения (Pool)
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // Обязательно для работы с облачными БД типа Render/Supabase
-  }
+  ssl: { rejectUnauthorized: false }
 });
 
-// Функция для создания таблицы (выполнится один раз при запуске, если таблицы нет)
+// 3. Определение функции initDB
 const initDB = async () => {
   const query = `
     CREATE TABLE IF NOT EXISTS users (
@@ -31,12 +25,15 @@ const initDB = async () => {
   `;
   try {
     await pool.query(query);
-    console.log("База данных готова к работе");
+    console.log("--- База данных инициализирована ---");
   } catch (err) {
     console.error("Ошибка инициализации БД:", err);
+    process.exit(1); // Останавливаем сервер, если база не подключилась
   }
 };
 
+// 4. ЗАПУСК ИНИЦИАЛИЗАЦИИ
+initDB();
 
 // Твой токен от BotFather
 const BOT_TOKEN = '8782512322:AAE2dwWX7V2PZwFIj3aAFLC-GoszWh0hwiQ';
@@ -192,4 +189,3 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
 });
-initDB();
