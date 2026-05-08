@@ -1,17 +1,15 @@
-// 1. Импорты
-const express = require('express');
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const app = express();
-
-// 2. Настройка подключения (Pool)
+// Настройка пула соединений
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: {
+    rejectUnauthorized: false // Без этого будет ошибка 500 или таймаут
+  }
 });
 
-// 3. Определение функции initDB
+// Функция для создания таблицы (выполнится один раз при запуске, если таблицы нет)
 const initDB = async () => {
   const query = `
     CREATE TABLE IF NOT EXISTS users (
@@ -25,21 +23,17 @@ const initDB = async () => {
   `;
   try {
     await pool.query(query);
-    console.log("--- База данных инициализирована ---");
+    console.log("База данных готова к работе");
   } catch (err) {
     console.error("Ошибка инициализации БД:", err);
-    process.exit(1); // Останавливаем сервер, если база не подключилась
   }
 };
 
-// 4. ЗАПУСК ИНИЦИАЛИЗАЦИИ
 initDB();
-
 // Твой токен от BotFather
 const BOT_TOKEN = '8782512322:AAE2dwWX7V2PZwFIj3aAFLC-GoszWh0hwiQ';
 
-// База данных в оперативной памяти
-const players = {}; 
+
 
 // --- ПРОВЕРКА ПОДЛИННОСТИ (TELEGRAM) ---
 function verifyTelegramWebAppData(initData) {
