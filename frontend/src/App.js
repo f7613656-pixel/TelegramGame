@@ -63,7 +63,7 @@ function App() {
     } catch (err) {
         console.error("Ошибка сети при синхронизации:", err);
     }
-}, [user, unprocessedClicks]);
+}, [user, unprocessedClicks, authorizedFetch]);
 
     // Обновленная функция покупки
     const buyUpgrade = async (type) => {
