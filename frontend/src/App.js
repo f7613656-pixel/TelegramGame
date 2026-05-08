@@ -2,22 +2,22 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 
 const tg = window.Telegram.WebApp;
-const API_URL = 'https://telegramgame-1.onrender.com';
+const API_URL = '[https://telegramgame-1.onrender.com](https://telegramgame-1.onrender.com)';
 
 function App() {
-    // Состояния пользователя и навигации
+    // Пользователь и навигация
     const [user] = useState(tg.initDataUnsafe?.user || { id: '000000', first_name: 'Игрок', photo_url: '' });
     const [activeTab, setActiveTab] = useState('home');
     const [modal, setModal] = useState({ show: false, message: '' });
     
-    // Игровые данные (логика)
+    // Игровые данные
     const [clickPower, setClickPower] = useState(1);
     const [passiveIncome, setPassiveIncome] = useState(0);
     const [serverData, setServerData] = useState({ balance: 0, lastSync: Date.now() });
     const [unprocessedClicks, setUnprocessedClicks] = useState(0);
     const [visualBalance, setVisualBalance] = useState(0);
     
-    // Эффекты
+    // UI эффекты
     const [clicks, setClicks] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
 
@@ -34,7 +34,7 @@ function App() {
         return fetch(`${API_URL}${endpoint}`, { ...options, headers });
     }, []);
 
-    // 1. Инициализация при входе
+    // 1. Инициализация (загрузка профиля)
     useEffect(() => {
         tg.ready();
         tg.expand();
@@ -47,15 +47,15 @@ function App() {
                     setClickPower(data.clickPower);
                     setPassiveIncome(data.passiveIncome);
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error("Ошибка загрузки:", e); }
         };
         loadData();
     }, [user.id, authorizedFetch]);
 
-    // 2. Подгрузка топов
+    // 2. Подгрузка ТОПов (когда открывается вкладка)
     useEffect(() => {
         if (activeTab === 'leaderboard') {
-            const fetchTops = async () => {
+            const fetchLeaderboard = async () => {
                 try {
                     const res = await authorizedFetch('/api/leaderboard');
                     if (res.ok) {
@@ -64,17 +64,20 @@ function App() {
                     }
                 } catch (e) { console.error(e); }
             };
-            fetchTops();
+            fetchLeaderboard();
         }
     }, [activeTab, authorizedFetch]);
 
-    // 3. ПЛАВНЫЙ СЧЕТЧИК (Твоя валюта теперь "бежит" красиво)
+    // 3. ПЛАВНЫЙ СЧЕТЧИК (Валюта бежит красиво, 60fps)
     useEffect(() => {
         let animationFrame;
         const updateVisual = () => {
             const now = Date.now();
             const elapsed = Math.max(0, (now - serverData.lastSync) / 1000);
+            
+            // Текущий баланс = Что сказал сервер + Пассив за время ожидания + Клики в руках
             const currentTotal = serverData.balance + (elapsed * passiveIncome) + (unprocessedClicks * clickPower);
+            
             setVisualBalance(currentTotal);
             animationFrame = requestAnimationFrame(updateVisual);
         };
@@ -82,7 +85,7 @@ function App() {
         return () => cancelAnimationFrame(animationFrame);
     }, [serverData, passiveIncome, unprocessedClicks, clickPower]);
 
-    // 4. Синхронизация кликов
+    // 4. Синхронизация кликов (раз в 2 секунды)
     useEffect(() => {
         const syncInterval = setInterval(async () => {
             if (unprocessedClicks === 0) return;
@@ -94,34 +97,37 @@ function App() {
                 });
                 if (res.ok) {
                     const data = await res.json();
+                    // Вычитаем только те клики, которые отправили
                     setUnprocessedClicks(prev => Math.max(0, prev - clicksToSend));
                     setServerData({ balance: data.balance, lastSync: data.serverTime });
                 }
-            } catch (err) { console.error(err); }
+            } catch (err) { console.error("Ошибка синхронизации:", err); }
         }, 2000);
         return () => clearInterval(syncInterval);
     }, [unprocessedClicks, user.id, authorizedFetch]);
 
-    // Клик по кнопке
     const handleTap = (e) => {
         setUnprocessedClicks(prev => prev + 1);
+        
+        // Координаты для анимации частиц
         const id = Date.now();
         const x = e.clientX || (e.touches && e.touches[0].clientX);
         const y = e.clientY || (e.touches && e.touches[0].clientY);
+        
         setClicks((prev) => [...prev, { id, x, y, value: clickPower }]);
         setTimeout(() => setClicks((prev) => prev.filter(c => c.id !== id)), 800);
     };
 
-    // Покупка улучшений
     const buyUpgrade = async (type) => {
         try {
+            // Передаем локальные клики перед покупкой для точности баланса
             const res = await authorizedFetch(`/api/upgrade/${type}`, {
                 method: 'POST',
                 body: JSON.stringify({ userId: user.id, pendingClicks: unprocessedClicks })
             });
             if (res.ok) {
                 const data = await res.json();
-                setUnprocessedClicks(0);
+                setUnprocessedClicks(0); // Очищаем локальные, они учтены сервером
                 setServerData({ balance: data.balance, lastSync: data.serverTime });
                 setClickPower(data.clickPower);
                 setPassiveIncome(data.passiveIncome);
@@ -134,16 +140,17 @@ function App() {
 
     return (
         <div className="App">
-            {/* ВЕРХНЕЕ МЕНЮ С ФОТО И ИМЕНЕМ */}
+            {/* ВЕРХНЕЕ МЕНЮ */}
             <header className="main-header">
                 <div className="header-glass">
                     <div className="user-pill">
                         <div className="mini-avatar">
-                            {user.photo_url ? <img src={user.photo_url} alt="" /> : user.first_name[0]}
+                            {/* Фото профиля гарантированно КРУГЛОЕ */}
+                            {user.photo_url ? <img src={user.photo_url} alt="" style={{borderRadius: '50%'}} /> : user.first_name[0]}
                         </div>
                         <span className="user-name">{user.first_name}</span>
                     </div>
-                    {/* КРАСИВАЯ РАМКА СЧЕТЧИКА ВАЛЮТ */}
+                    {/* Рамка счетчика валют с кристаллом */}
                     <div className="balance-pill">
                         <div className="crystal-icon"></div>
                         <span className="balance-value">{Math.floor(visualBalance).toLocaleString()}</span>
@@ -154,7 +161,7 @@ function App() {
             <div className="content">
                 {activeTab === 'home' && (
                     <div className="tab-home">
-                        {/* КРАСИВЫЕ РАМКИ СТАТИСТИКИ */}
+                        {/* Рамки счетчиков клика и дохода */}
                         <div className="stats-grid">
                             <div className="stat-card tap-style">
                                 <div className="stat-indicator"></div>
@@ -172,11 +179,22 @@ function App() {
                             </div>
                         </div>
 
-                        {/* КРАСИВАЯ КНОПКА КЛИКА */}
+                        {/* ВОССТАНОВЛЕННАЯ КНОПКА КЛИКА: WRAPPER, НЕОН И КОЛЬЦА */}
                         <div className="game-area">
                             <div className="click-wrapper" onClick={handleTap}>
                                 <div className="neo-circle-button">
-                                    <div className="core-icon">⚡</div>
+                                    <div className="core-icon-glowing">
+                                        {/* Та самая кастомная молния со свечением */}
+                                        <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="#00f2ff">
+                                            <filter id="glow">
+                                                <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                                                <feMerge>
+                                                    <feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/>
+                                                </feMerge>
+                                            </filter>
+                                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" filter="url(#glow)"/>
+                                        </svg>
+                                    </div>
                                 </div>
                                 <div className="ring-1"></div>
                                 <div className="ring-2"></div>
@@ -196,7 +214,7 @@ function App() {
                             <div className="upg-item" onClick={() => buyUpgrade('click')}>
                                 <div>
                                     <p className="upg-title">Мультитап</p>
-                                    <small>Уровень: {clickPower}</small>
+                                    <small>Текущий уровень: {clickPower}</small>
                                 </div>
                                 <div className="upg-cost">{clickPower * 100}</div>
                             </div>
@@ -215,13 +233,13 @@ function App() {
                     <div className="tab-leaderboard">
                         <h2 className="title">ТОПЫ</h2>
                         <div className="leader-list">
-                            {leaderboard.map((p, i) => (
+                            {leaderboard.length > 0 ? leaderboard.map((p, i) => (
                                 <div key={i} className="leader-item">
                                     <span className="leader-rank">{i + 1}</span>
                                     <span className="leader-name">{p.name}</span>
                                     <span className="leader-score">{Math.floor(p.balance).toLocaleString()}</span>
                                 </div>
-                            ))}
+                            )) : <p>Загрузка лидеров...</p>}
                         </div>
                     </div>
                 )}
@@ -231,21 +249,20 @@ function App() {
                         <h2 className="title">ПРОФИЛЬ</h2>
                         <div className="profile-card">
                             <div className="profile-avatar-big">
-                                {user.photo_url ? <img src={user.photo_url} alt="" /> : user.first_name[0]}
+                                {/* Фото профиля гарантированно КРУГЛОЕ */}
+                                {user.photo_url ? <img src={user.photo_url} alt="" style={{borderRadius: '50%'}} /> : user.first_name[0]}
                             </div>
                             <h3 className="profile-name">{user.first_name}</h3>
                             <p className="profile-id">ID: {user.id}</p>
                             <div className="divider"></div>
-                            <div className="profile-stats">
-                                <div><span>Клик:</span> <strong>{clickPower}</strong></div>
-                                <div><span>Доход:</span> <strong>{passiveIncome}/с</strong></div>
-                            </div>
+                            <p>Сила клика: {clickPower}</p>
+                            <p>Пассивный доход: {passiveIncome}/с</p>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* НАВИГАЦИЯ С ИКОНКАМИ И ПРАВИЛЬНЫМИ НАЗВАНИЯМИ */}
+            {/* НАВИГАЦИЯ С КАСТОМНЫМИ ИКОНКАМИ И НАЗВАНИЯМИ */}
             <nav className="navbar-container">
                 <div className="navbar">
                     <button className={activeTab === 'home' ? 'active' : ''} onClick={() => setActiveTab('home')}>
@@ -267,11 +284,9 @@ function App() {
                 </div>
             </nav>
 
-            {/* КРАСИВОЕ МОДАЛЬНОЕ ОКНО */}
             {modal.show && (
                 <div className="modal-overlay">
                     <div className="modal-content">
-                        <div className="modal-icon">!</div>
                         <p>{modal.message}</p>
                     </div>
                 </div>
