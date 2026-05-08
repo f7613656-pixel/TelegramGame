@@ -15,6 +15,7 @@ function App() {
     const [unprocessedClicks, setUnprocessedClicks] = useState(0);
     const [visualBalance, setVisualBalance] = useState(0);
     const [shopCategory, setShopCategory] = useState('clicks'); // категории: clicks, passive, boxes
+    const [leaderboardCategory, setLeaderboardCategory] = useState('all'); // 'all' или 'month'
     const [clicks, setClicks] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
 
@@ -310,18 +311,49 @@ function App() {
 )}
 
                 {activeTab === 'leaderboard' && (
-                    <div className="tab-leaderboard">
-                        <h2 className="title">ТОП ИГРОКОВ</h2>
-                        <div className="leader-list">
-                            {leaderboard.map((p, i) => (
-                                <div key={i} className="leader-item">
-                                    <span>#{i + 1} {p.name}</span>
-                                    <span>{Math.floor(p.balance).toLocaleString()}</span>
-                                </div>
-                            ))}
+    <div className="tab-leaderboard">
+        <header className="leader-header">
+            <h2 className="title">РЕЙТИНГ</h2>
+            <div className="leader-tabs">
+                <button 
+                    className={leaderboardCategory === 'all' ? 'active' : ''} 
+                    onClick={() => setLeaderboardCategory('all')}
+                >ВСЕ ВРЕМЯ</button>
+                <button 
+                    className={leaderboardCategory === 'month' ? 'active' : ''} 
+                    onClick={() => setLeaderboardCategory('month')}
+                >ЗА МЕСЯЦ</button>
+            </div>
+        </header>
+
+        <div className="leader-content">
+            <div className="leader-list">
+                {leaderboard.length > 0 ? (
+                    leaderboard.map((player, index) => (
+                        <div key={index} className={`leader-card ${index === 0 ? 'top-1' : ''}`}>
+                            <div className="player-rank">
+                                {index + 1 <= 3 ? (
+                                    <div className={`rank-badge rank-${index + 1}`}></div>
+                                ) : (
+                                    <span>{index + 1}</span>
+                                )}
+                            </div>
+                            <div className="player-info">
+                                <span className="player-name">{player.name}</span>
+                                <span className="player-score">{Math.floor(player.balance).toLocaleString()}</span>
+                            </div>
+                            <div className="player-medal">
+                                {index === 0 && <div className="glow-crown"></div>}
+                            </div>
                         </div>
-                    </div>
+                    ))
+                ) : (
+                    <div className="loading-state">Загрузка данных...</div>
                 )}
+            </div>
+        </div>
+    </div>
+)}
 
                 {activeTab === 'profile' && (
                     <div className="tab-profile">
