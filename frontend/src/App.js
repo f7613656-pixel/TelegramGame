@@ -84,22 +84,39 @@ function App() {
     }, [user.id, authorizedFetch]);
 
    useEffect(() => {
+    // Запрашиваем данные только если выбрана вкладка топов
     if (activeTab === 'leaderboard') {
         const fetchTops = async () => {
             try {
-                // Добавляем параметр категории в запрос
+                console.log("Запрос топов для категории:", leaderboardCategory); // Отладка
+                
+                // Пробуем отправить запрос. Если бэкенд еще не фильтрует по type, 
+                // он просто вернет общий список, что нам и нужно для начала.
                 const res = await authorizedFetch(`/api/leaderboard?type=${leaderboardCategory}`);
+                
                 if (res.ok) {
                     const data = await res.json();
-                    setLeaderboard(data);
+                    console.log("Получены данные топов:", data); // Проверь это в консоли F12
+                    
+                    // Проверяем, что пришел массив, прежде чем записывать
+                    if (Array.isArray(data)) {
+                        setLeaderboard(data);
+                    } else {
+                        console.error("Бэкенд вернул не массив:", data);
+                        setLeaderboard([]); 
+                    }
+                } else {
+                    console.error("Ошибка сервера при загрузке топов. Статус:", res.status);
+                    setLeaderboard([]);
                 }
             } catch (e) { 
-                console.error("Ошибка загрузки топов:", e); 
+                console.error("Сетевая ошибка при загрузке топов:", e);
+                setLeaderboard([]);
             }
         };
         fetchTops();
     }
-}, [activeTab, leaderboardCategory, authorizedFetch]); // Добавлен leaderboardCategory
+}, [activeTab, leaderboardCategory, authorizedFetch]);
 
     // Анимация баланса
     useEffect(() => {
