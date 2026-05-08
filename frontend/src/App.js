@@ -33,29 +33,69 @@ function App() {
     }, []);
 
     // Функция синхронизации кликов
+// Обновленная функция синхронизации
     const syncWithServer = useCallback(async (forcedClicks = null) => {
         const clicksToSend = forcedClicks !== null ? forcedClicks : unprocessedClicks;
         if (clicksToSend === 0) return;
 
+        // Вычисляем актуальный баланс перед отправкой
+        const currentBalance = Math.floor(visualBalance);
+
         try {
             const res = await authorizedFetch('/api/sync', {
                 method: 'POST',
-                body: JSON.stringify({ userId: user.id, clicksCount: clicksToSend })
+                body: JSON.stringify({ 
+                    userId: user.id, 
+                    name: user.first_name || "Игрок", // Обязательно передаем имя
+                    balance: currentBalance           // Обязательно передаем баланс
+                })
             });
 
             if (res.ok) {
                 const data = await res.json();
                 setUnprocessedClicks(prev => Math.max(0, prev - clicksToSend));
                 setServerData({
-                    balance: data.balance,
-                    lastSync: data.serverTime
+                    balance: Number(data.balance),
+                    lastSync: Number(data.last_sync || data.serverTime || Date.now())
                 });
                 return data;
+            } else {
+                console.error("Сервер ответил ошибкой:", await res.text());
             }
         } catch (err) {
-            console.error("Ошибка синхронизации");
+            console.error("Ошибка сети при синхронизации:", err);
         }
-    }, [unprocessedClicks, user.id, authorizedFetch]);
+    }, [unprocessedClicks, user.id, user.first_name, visualBalance, authorizedFetch]);
+
+    // Обновленная функция покупки
+    const buyUpgrade = async (type) => {
+        try {
+            if (unprocessedClicks > 0) {
+                await syncWithServer(); 
+            }
+
+            const res = await authorizedFetch(`/api/upgrade/${type}`, {
+                method: 'POST',
+                body: JSON.stringify({ userId: user.id })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setServerData({ balance: Number(data.balance), lastSync: data.serverTime });
+                setClickPower(Number(data.clickPower));
+                setPassiveIncome(Number(data.passiveIncome));
+                showNotice("Улучшение куплено!");
+            } else if (res.status === 400) {
+                const errorData = await res.json();
+                showNotice(errorData.message || "Недостаточно средств");
+            } else {
+                showNotice("Ошибка базы данных");
+            }
+        } catch (err) {
+            console.error("Сетевая ошибка при покупке:", err);
+            showNotice("Ошибка соединения с сервером"); // Изменили текст для понятности
+        }
+    };
 
     // Специальная функция для смены вкладки с принудительным сохранением
     const handleTabChange = async (tab) => {

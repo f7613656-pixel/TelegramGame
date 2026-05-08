@@ -90,10 +90,17 @@ app.get('/api/user/:id', async (req, res) => {
     }
 });
 
-// 2. Синхронизация (теперь обновляет и клики, и пассив)
 app.post('/api/sync', async (req, res) => {
+    console.log("=== СИНХРОНИЗАЦИЯ ===");
+    console.log("Полученные данные:", req.body); // Смотрим, что реально пришло
+
+    // Проверяем, что тело запроса вообще есть
+    if (!req.body || req.body.userId === undefined) {
+        console.error("Ошибка: фронтенд не прислал userId!");
+        return res.status(400).json({ error: "No user ID provided" });
+    }
+
     const { userId, name, balance } = req.body;
-    if (!userId) return res.status(400).send("No user ID");
 
     try {
         const query = `
@@ -103,23 +110,37 @@ app.post('/api/sync', async (req, res) => {
             SET balance = $3, name = $2, last_sync = $4
             RETURNING *;
         `;
-        const result = await pool.query(query, [userId.toString(), name, balance, Date.now()]);
+        const values = [userId.toString(), name || "Player", balance || 0, Date.now()];
+        const result = await pool.query(query, values);
+        
+        console.log("Успешно сохранено:", result.rows[0].id);
         res.json(result.rows[0]);
     } catch (err) {
-        console.error("Ошибка синхронизации:", err);
-        res.status(500).send("Ошибка сохранения");
+        console.error("ОШИБКА БД ПРИ СИНХРОНИЗАЦИИ:", err.message);
+        res.status(500).json({ error: "Ошибка сохранения", details: err.message });
     }
 });
 
 // 3. Покупка улучшений (ПОЛНОСТЬЮ ПЕРЕПИСАНО ПОД БД)
 app.post('/api/upgrade/:type', authMiddleware, async (req, res) => {
-    const { userId } = req.body;
+    console.log(`=== ПОКУПКА АПГРЕЙДА (${req.params.type}) ===`);
+    console.log("Данные от игрока:", req.body);
+
+    if (!req.body || req.body.userId === undefined) {
+        console.error("Ошибка: нет userId для покупки");
+        return res.status(400).json({ message: "Ошибка передачи данных" });
+    }
+
+    const userId = req.body.userId.toString();
     const type = req.params.type;
 
     try {
-        // Получаем текущие данные игрока из БД
-        const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId.toString()]);
-        if (userRes.rows.length === 0) return res.status(404).send('User not found');
+        const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+        
+        if (userRes.rows.length === 0) {
+            console.log("Пользователь не найден в БД:", userId);
+            return res.status(404).json({ message: 'Пользователь не найден. Попробуйте перезайти.' });
+        }
         
         let user = userRes.rows[0];
         let cost = 0;
@@ -131,20 +152,22 @@ app.post('/api/upgrade/:type', authMiddleware, async (req, res) => {
             if (user.balance < cost) return res.status(400).json({ message: "Недостаточно монет" });
             
             updateQuery = "UPDATE users SET balance = balance - $1, click_power = click_power + 1 WHERE id = $2 RETURNING *";
-            queryParams = [cost, user.id];
+            queryParams = [cost, userId];
         } else if (type === 'passive') {
             const level = Math.floor(user.passive_income / 5);
             cost = (level + 1) * 150;
             if (user.balance < cost) return res.status(400).json({ message: "Недостаточно монет" });
             
             updateQuery = "UPDATE users SET balance = balance - $1, passive_income = passive_income + 5 WHERE id = $2 RETURNING *";
-            queryParams = [cost, user.id];
+            queryParams = [cost, userId];
         } else {
-            return res.status(400).send('Invalid type');
+            return res.status(400).json({ message: 'Неверный тип апгрейда' });
         }
 
         const result = await pool.query(updateQuery, queryParams);
         const updatedUser = result.rows[0];
+
+        console.log("Покупка успешна! Новый баланс:", updatedUser.balance);
 
         res.json({
             balance: updatedUser.balance,
@@ -154,8 +177,8 @@ app.post('/api/upgrade/:type', authMiddleware, async (req, res) => {
         });
 
     } catch (err) {
-        console.error(err);
-        res.status(500).send("Ошибка при покупке");
+        console.error("ОШИБКА БД ПРИ ПОКУПКЕ:", err.message);
+        res.status(500).json({ message: "Ошибка базы данных", details: err.message });
     }
 });
 
