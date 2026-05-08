@@ -157,12 +157,20 @@ app.post('/api/upgrade/:type', authMiddleware, async (req, res) => {
 // 4. Топы
 app.get('/api/leaderboard', async (req, res) => {
     try {
-        const result = await pool.query(
-            'SELECT name, balance FROM users ORDER BY balance DESC LIMIT 50'
-        );
-        res.json(result.rows); 
+        // Добавляем приведение типов и проверку на наличие баланса
+        const result = await pool.query(`
+            SELECT name, CAST(balance AS FLOAT) as balance 
+            FROM users 
+            WHERE balance > 0 
+            ORDER BY balance DESC 
+            LIMIT 50
+        `);
+        
+        // Если строк нет, возвращаем пустой массив, а не null
+        res.json(result.rows || []); 
     } catch (err) {
-        res.status(500).json({ error: "Ошибка сервера" });
+        console.error("Ошибка в топах:", err.message);
+        res.status(500).json({ error: "Ошибка сервера", details: err.message });
     }
 });
 
