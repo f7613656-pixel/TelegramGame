@@ -14,7 +14,7 @@ function App() {
     const [serverData, setServerData] = useState({ balance: 0, lastSync: Date.now() });
     const [unprocessedClicks, setUnprocessedClicks] = useState(0);
     const [visualBalance, setVisualBalance] = useState(0);
-    
+    const [shopCategory, setShopCategory] = useState('clicks'); // категории: clicks, passive, boxes
     const [clicks, setClicks] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
 
@@ -204,20 +204,84 @@ function App() {
                 )}
 
                 {activeTab === 'shop' && (
-                    <div className="tab-shop">
-                        <h2 className="title">МАГАЗИН</h2>
-                        <div className="upg-list">
-                            <div className="upg-item" onClick={() => buyUpgrade('click')}>
-                                <div><p className="upg-title">Мультитап</p><small>Ур. {clickPower}</small></div>
-                                <div className="upg-cost">{clickPower * 100}</div>
-                            </div>
-                            <div className="upg-item" onClick={() => buyUpgrade('passive')}>
-                                <div><p className="upg-title">Авто-доход</p><small>Майнинг: {passiveIncome}/с</small></div>
-                                <div className="upg-cost">{(Math.floor(passiveIncome / 5) + 1) * 150}</div>
-                            </div>
+    <div className="tab-shop">
+        <header className="shop-header">
+            <h2 className="title">Магазин</h2>
+            <div className="shop-tabs">
+                <button 
+                    className={shopCategory === 'clicks' ? 'active' : ''} 
+                    onClick={() => setShopCategory('clicks')}
+                >КЛИК</button>
+                <button 
+                    className={shopCategory === 'passive' ? 'active' : ''} 
+                    onClick={() => setShopCategory('passive')}
+                >ДОХОД</button>
+                <button 
+                    className={shopCategory === 'boxes' ? 'active' : ''} 
+                    onClick={() => setShopCategory('boxes')}
+                >БОКСЫ</button>
+            </div>
+        </header>
+
+        <div className="shop-content">
+            {/* КАТЕГОРИЯ: КЛИКИ */}
+            {shopCategory === 'clicks' && (
+                <div className="upg-list">
+                    <div className="upg-card" onClick={() => buyUpgrade('click')}>
+                        <div className="upg-icon-frame">
+                            <div className="icon-bolt"></div>
+                        </div>
+                        <div className="upg-details">
+                            <h3>Мультитап</h3>
+                            <p>Увеличение силы нажатия</p>
+                            <small>Текущий уровень: {clickPower}</small>
+                        </div>
+                        <div className="upg-buy">
+                            <span>{clickPower * 100}</span>
                         </div>
                     </div>
-                )}
+                </div>
+            )}
+
+            {/* КАТЕГОРИЯ: ДОХОД */}
+            {shopCategory === 'passive' && (
+                <div className="upg-list">
+                    <div className="upg-card" onClick={() => buyUpgrade('passive')}>
+                        <div className="upg-icon-frame">
+                            <div className="icon-gear"></div>
+                        </div>
+                        <div className="upg-details">
+                            <h3>Авто-майнер</h3>
+                            <p>Прибыль в автоматическом режиме</p>
+                            <small>Сейчас: {passiveIncome}/сек</small>
+                        </div>
+                        <div className="upg-buy">
+                            <span>{(Math.floor(passiveIncome / 5) + 1) * 150}</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* КАТЕГОРИЯ: БОКСЫ */}
+            {shopCategory === 'boxes' && (
+                <div className="upg-list">
+                    <div className="upg-card locked">
+                        <div className="upg-icon-frame">
+                            <div className="icon-box"></div>
+                        </div>
+                        <div className="upg-details">
+                            <h3>Секретный кейс</h3>
+                            <p>Случайные бонусы и награды</p>
+                        </div>
+                        <div className="upg-buy">
+                            <span>BLOCKED</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    </div>
+)}
 
                 {activeTab === 'leaderboard' && (
                     <div className="tab-leaderboard">
