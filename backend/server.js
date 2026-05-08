@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors'); // Импортируем
 const { Pool } = require('pg');
 const crypto = require('crypto'); // Обязательно добавь этот импорт
 require('dotenv').config();
