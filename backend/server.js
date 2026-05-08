@@ -115,27 +115,45 @@ app.get('/api/user/:id', async (req, res) => {
 });
 
 app.post('/api/sync', async (req, res) => {
-  const { userId, clicks } = req.body;
-  
-  try {
-    const query = `
-      UPDATE users 
-      SET balance = balance + $1 
-      WHERE id = $2 
-      RETURNING balance, click_power, passive_income;
-    `;
-    // Важно: userId.toString(), чтобы не было конфликта типов
-    const result = await pool.query(query, [clicks, userId.toString()]);
+    const { userId, clicks } = req.body;
 
-    if (result.rows.length === 0) {
-        return res.status(404).json({ error: "Пользователь не найден" });
+    // Логируем входящие данные, чтобы понять, что прислал фронтенд
+    console.log(`[SYNC] Запрос от ID: ${userId}, Кликов: ${clicks}`);
+
+    if (!userId || clicks === undefined) {
+        return res.status(400).json({ error: "Неполные данные запроса" });
     }
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error("SYNC ERROR:", err.message);
-    res.status(500).json({ error: "Ошибка сохранения", details: err.message });
-  }
+    try {
+        // Используем максимально простой запрос для проверки
+        const query = `
+            UPDATE users 
+            SET balance = COALESCE(balance, 0) + $1 
+            WHERE id = $2 
+            RETURNING balance, click_power, passive_income
+        `;
+        
+        const result = await pool.query(query, [Number(clicks), userId.toString()]);
+
+        if (result.rows.length === 0) {
+            console.error(`[SYNC] Пользователь ${userId} не найден в базе`);
+            return res.status(404).json({ error: "Пользователь не найден" });
+        }
+
+        console.log(`[SYNC] Успех! Новый баланс пользователя ${userId}: ${result.rows[0].balance}`);
+        res.json(result.rows[0]);
+
+    } catch (err) {
+        // ТУТ мы наконец увидим реальную ошибку в логах Render
+        console.error("!!! КРИТИЧЕСКАЯ ОШИБКА БАЗЫ:");
+        console.error("Сообщение:", err.message);
+        console.error("Код ошибки:", err.code);
+
+        res.status(500).json({ 
+            error: "Ошибка сохранения", 
+            details: err.message 
+        });
+    }
 });
 // 3. Покупка улучшений (ПОЛНОСТЬЮ ПЕРЕПИСАНО ПОД БД)
 app.post('/api/upgrade/click', authMiddleware, async (req, res) => {
