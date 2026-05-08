@@ -5,19 +5,19 @@ const tg = window.Telegram.WebApp;
 const API_URL = 'https://telegramgame-1.onrender.com';
 
 function App() {
-    // Пользователь и навигация
-    const [user] = useState(tg.initDataUnsafe?.user || { id: '000000', first_name: 'Игрок' });
+    // Состояния пользователя и навигации
+    const [user] = useState(tg.initDataUnsafe?.user || { id: '000000', first_name: 'Игрок', photo_url: '' });
     const [activeTab, setActiveTab] = useState('home');
     const [modal, setModal] = useState({ show: false, message: '' });
     
-    // Игровые данные
+    // Игровые данные (логика)
     const [clickPower, setClickPower] = useState(1);
     const [passiveIncome, setPassiveIncome] = useState(0);
     const [serverData, setServerData] = useState({ balance: 0, lastSync: Date.now() });
     const [unprocessedClicks, setUnprocessedClicks] = useState(0);
     const [visualBalance, setVisualBalance] = useState(0);
     
-    // UI эффекты
+    // Эффекты
     const [clicks, setClicks] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
 
@@ -34,7 +34,7 @@ function App() {
         return fetch(`${API_URL}${endpoint}`, { ...options, headers });
     }, []);
 
-    // Инициализация
+    // 1. Инициализация при входе
     useEffect(() => {
         tg.ready();
         tg.expand();
@@ -47,12 +47,12 @@ function App() {
                     setClickPower(data.clickPower);
                     setPassiveIncome(data.passiveIncome);
                 }
-            } catch (e) { console.error("Ошибка загрузки:", e); }
+            } catch (e) { console.error(e); }
         };
         loadData();
     }, [user.id, authorizedFetch]);
 
-    // Загрузка ТОПов
+    // 2. Подгрузка топов
     useEffect(() => {
         if (activeTab === 'leaderboard') {
             const fetchTops = async () => {
@@ -68,7 +68,7 @@ function App() {
         }
     }, [activeTab, authorizedFetch]);
 
-    // Плавный визуальный баланс (без скачков)
+    // 3. ПЛАВНЫЙ СЧЕТЧИК (Твоя валюта теперь "бежит" красиво)
     useEffect(() => {
         let animationFrame;
         const updateVisual = () => {
@@ -82,7 +82,7 @@ function App() {
         return () => cancelAnimationFrame(animationFrame);
     }, [serverData, passiveIncome, unprocessedClicks, clickPower]);
 
-    // Синхронизация кликов раз в 2 секунды
+    // 4. Синхронизация кликов
     useEffect(() => {
         const syncInterval = setInterval(async () => {
             if (unprocessedClicks === 0) return;
@@ -97,11 +97,12 @@ function App() {
                     setUnprocessedClicks(prev => Math.max(0, prev - clicksToSend));
                     setServerData({ balance: data.balance, lastSync: data.serverTime });
                 }
-            } catch (err) { console.error("Ошибка синхронизации:", err); }
+            } catch (err) { console.error(err); }
         }, 2000);
         return () => clearInterval(syncInterval);
     }, [unprocessedClicks, user.id, authorizedFetch]);
 
+    // Клик по кнопке
     const handleTap = (e) => {
         setUnprocessedClicks(prev => prev + 1);
         const id = Date.now();
@@ -111,6 +112,7 @@ function App() {
         setTimeout(() => setClicks((prev) => prev.filter(c => c.id !== id)), 800);
     };
 
+    // Покупка улучшений
     const buyUpgrade = async (type) => {
         try {
             const res = await authorizedFetch(`/api/upgrade/${type}`, {
@@ -125,15 +127,23 @@ function App() {
                 setPassiveIncome(data.passiveIncome);
             } else {
                 const errorData = await res.json();
-                showNotice(errorData.message || "Ошибка покупки");
+                showNotice(errorData.message || "Ошибка");
             }
         } catch (err) { showNotice("Сервер недоступен"); }
     };
 
     return (
         <div className="App">
+            {/* ВЕРХНЕЕ МЕНЮ С ФОТО И ИМЕНЕМ */}
             <header className="main-header">
                 <div className="header-glass">
+                    <div className="user-pill">
+                        <div className="mini-avatar">
+                            {user.photo_url ? <img src={user.photo_url} alt="" /> : user.first_name[0]}
+                        </div>
+                        <span className="user-name">{user.first_name}</span>
+                    </div>
+                    {/* КРАСИВАЯ РАМКА СЧЕТЧИКА ВАЛЮТ */}
                     <div className="balance-pill">
                         <div className="crystal-icon"></div>
                         <span className="balance-value">{Math.floor(visualBalance).toLocaleString()}</span>
@@ -144,23 +154,35 @@ function App() {
             <div className="content">
                 {activeTab === 'home' && (
                     <div className="tab-home">
+                        {/* КРАСИВЫЕ РАМКИ СТАТИСТИКИ */}
                         <div className="stats-grid">
-                            <div className="stat-card">
-                                <small>КЛИК</small>
-                                <strong>+{clickPower}</strong>
+                            <div className="stat-card tap-style">
+                                <div className="stat-indicator"></div>
+                                <div className="stat-info">
+                                    <small>КЛИК</small>
+                                    <strong>+{clickPower}</strong>
+                                </div>
                             </div>
-                            <div className="stat-card">
-                                <small>ДОХОД/С</small>
-                                <strong>+{passiveIncome}</strong>
+                            <div className="stat-card passive-style">
+                                <div className="stat-indicator"></div>
+                                <div className="stat-info">
+                                    <small>ДОХОД / С</small>
+                                    <strong>+{passiveIncome}</strong>
+                                </div>
                             </div>
                         </div>
+
+                        {/* КРАСИВАЯ КНОПКА КЛИКА */}
                         <div className="game-area">
                             <div className="click-wrapper" onClick={handleTap}>
                                 <div className="neo-circle-button">
                                     <div className="core-icon">⚡</div>
                                 </div>
+                                <div className="ring-1"></div>
+                                <div className="ring-2"></div>
                             </div>
                         </div>
+
                         {clicks.map(c => (
                             <div key={c.id} className="tap-particle" style={{ left: c.x, top: c.y }}>+{c.value}</div>
                         ))}
@@ -174,7 +196,7 @@ function App() {
                             <div className="upg-item" onClick={() => buyUpgrade('click')}>
                                 <div>
                                     <p className="upg-title">Мультитап</p>
-                                    <small>Текущий уровень: {clickPower}</small>
+                                    <small>Уровень: {clickPower}</small>
                                 </div>
                                 <div className="upg-cost">{clickPower * 100}</div>
                             </div>
@@ -193,12 +215,13 @@ function App() {
                     <div className="tab-leaderboard">
                         <h2 className="title">ТОПЫ</h2>
                         <div className="leader-list">
-                            {leaderboard.length > 0 ? leaderboard.map((p, i) => (
+                            {leaderboard.map((p, i) => (
                                 <div key={i} className="leader-item">
-                                    <span>{i + 1}. {p.name}</span>
-                                    <strong>{Math.floor(p.balance).toLocaleString()}</strong>
+                                    <span className="leader-rank">{i + 1}</span>
+                                    <span className="leader-name">{p.name}</span>
+                                    <span className="leader-score">{Math.floor(p.balance).toLocaleString()}</span>
                                 </div>
-                            )) : <p>Загрузка лидеров...</p>}
+                            ))}
                         </div>
                     </div>
                 )}
@@ -207,17 +230,22 @@ function App() {
                     <div className="tab-profile">
                         <h2 className="title">ПРОФИЛЬ</h2>
                         <div className="profile-card">
-                            <p><strong>Имя:</strong> {user.first_name}</p>
-                            <p><strong>ID:</strong> {user.id}</p>
+                            <div className="profile-avatar-big">
+                                {user.photo_url ? <img src={user.photo_url} alt="" /> : user.first_name[0]}
+                            </div>
+                            <h3 className="profile-name">{user.first_name}</h3>
+                            <p className="profile-id">ID: {user.id}</p>
                             <div className="divider"></div>
-                            <p>Сила клика: {clickPower}</p>
-                            <p>Пассивный доход: {passiveIncome}/с</p>
+                            <div className="profile-stats">
+                                <div><span>Клик:</span> <strong>{clickPower}</strong></div>
+                                <div><span>Доход:</span> <strong>{passiveIncome}/с</strong></div>
+                            </div>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* НАВИГАЦИЯ С КАСТОМНЫМИ ИКОНКАМИ И НАЗВАНИЯМИ */}
+            {/* НАВИГАЦИЯ С ИКОНКАМИ И ПРАВИЛЬНЫМИ НАЗВАНИЯМИ */}
             <nav className="navbar-container">
                 <div className="navbar">
                     <button className={activeTab === 'home' ? 'active' : ''} onClick={() => setActiveTab('home')}>
@@ -239,9 +267,11 @@ function App() {
                 </div>
             </nav>
 
+            {/* КРАСИВОЕ МОДАЛЬНОЕ ОКНО */}
             {modal.show && (
                 <div className="modal-overlay">
                     <div className="modal-content">
+                        <div className="modal-icon">!</div>
                         <p>{modal.message}</p>
                     </div>
                 </div>
