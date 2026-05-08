@@ -188,30 +188,7 @@ function App() {
         setTimeout(() => setClicks((prev) => prev.filter(c => c.id !== tapId)), 800);
     };
 
-    const buyUpgrade = async (type) => {
-        try {
-            // Перед покупкой тоже полезно синхронизировать остаток кликов
-            if (unprocessedClicks > 0) await syncWithServer();
-
-            const res = await authorizedFetch(`/api/upgrade/${type}`, {
-                method: 'POST',
-                body: JSON.stringify({ userId: user.id })
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                setServerData({ balance: data.balance, lastSync: data.serverTime });
-                setClickPower(Number(data.clickPower));
-                setPassiveIncome(Number(data.passiveIncome));
-            } else if (res.status === 400) {
-                showNotice("Недостаточно средств");
-            } else {
-                showNotice("Ошибка сервера");
-            }
-        } catch (err) {
-            showNotice("Сервер недоступен");
-        }
-    };
+ 
 
    
 
