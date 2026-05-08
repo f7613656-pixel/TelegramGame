@@ -122,82 +122,60 @@ app.post('/api/sync', async (req, res) => {
 });
 
 // 3. Покупка улучшений (ПОЛНОСТЬЮ ПЕРЕПИСАНО ПОД БД)
-app.post('/api/upgrade/:type', async (req, res) => {
+app.post('/api/upgrade/click', authMiddleware, async (req, res) => {
     const { userId } = req.body;
-    const { type } = req.params;
-
-    console.log(`[UPGRADE] Попытка покупки: ${type} для ID: ${userId}`);
+    
+    if (!userId) return res.status(400).json({ message: "ID не передан" });
 
     try {
-        // 1. Проверяем пользователя
-        const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId.toString()]);
+        // Используем COALESCE, чтобы если в базе NULL, заменялось на 1 и 0
+        const query = `
+            UPDATE users 
+            SET 
+                balance = balance - (COALESCE(click_power, 1) * 100),
+                click_power = COALESCE(click_power, 1) + 1 
+            WHERE id = $1 AND balance >= (COALESCE(click_power, 1) * 100)
+            RETURNING balance, click_power, passive_income;
+        `;
         
-        if (userRes.rows.length === 0) {
-            return res.status(404).json({ message: "Сначала начни играть (ID не найден)" });
+        const result = await pool.query(query, [userId.toString()]);
+
+        if (result.rows.length === 0) {
+            return res.status(400).json({ message: "Недостаточно монет или юзер не найден" });
         }
 
-        const user = userRes.rows[0];
-        let cost = 0;
-        let query = "";
-        let params = [];
-
-        // 2. Логика расчета (убедись, что имена колонок в базе именно такие!)
-        if (type === 'click') {
-            cost = (user.click_power || 1) * 100;
-            if (user.balance < cost) return res.status(400).json({ message: "Недостаточно монет" });
-            
-            query = `UPDATE users SET balance = balance - $1, click_power = COALESCE(click_power, 1) + 1 WHERE id = $2 RETURNING *`;
-            params = [cost, userId.toString()];
-        } 
-        else if (type === 'passive') {
-            const currentPassive = user.passive_income || 0;
-            cost = (Math.floor(currentPassive / 5) + 1) * 150;
-            if (user.balance < cost) return res.status(400).json({ message: "Недостаточно монет" });
-            
-            query = `UPDATE users SET balance = balance - $1, passive_income = COALESCE(passive_income, 0) + 5 WHERE id = $2 RETURNING *`;
-            params = [cost, userId.toString()];
-        }
-
-        const result = await pool.query(query, params);
-        const updated = result.rows[0];
-
+        const updatedUser = result.rows[0];
         res.json({
-            balance: updated.balance,
-            clickPower: updated.click_power,
-            passiveIncome: updated.passive_income,
+            balance: updatedUser.balance,
+            clickPower: updatedUser.click_power,
+            passiveIncome: updatedUser.passive_income,
             serverTime: Date.now()
         });
 
     } catch (err) {
-        // ВОТ ТУТ мы увидим реальную причину в логах Render
-        console.error("!!! ОШИБКА БАЗЫ ДАННЫХ:", err.message);
-        res.status(500).json({ 
-            message: "Ошибка базы данных", 
-            details: err.message // Отправляем детали на фронт для отладки
-        });
+        console.error("ОШИБКА АПГРЕЙДА КЛИКА:", err.message);
+        res.status(500).json({ message: "Ошибка БД", details: err.message });
     }
 });
 
 // 4. Топы
 app.get('/api/leaderboard', async (req, res) => {
     try {
-        // Добавляем приведение типов и проверку на наличие баланса
+        // Проверяем по балансу, берем топ 10
         const result = await pool.query(`
-            SELECT name, CAST(balance AS FLOAT) as balance 
+            SELECT name, balance 
             FROM users 
-            WHERE balance > 0 
+            WHERE name IS NOT NULL 
             ORDER BY balance DESC 
-            LIMIT 50
+            LIMIT 10
         `);
         
-        // Если строк нет, возвращаем пустой массив, а не null
-        res.json(result.rows || []); 
+        res.json(result.rows);
     } catch (err) {
-        console.error("Ошибка в топах:", err.message);
-        res.status(500).json({ error: "Ошибка сервера", details: err.message });
+        console.error("ОШИБКА ЛИДЕРБОРДА:", err.message);
+        res.status(500).json([]); // Возвращаем пустой массив вместо ошибки 500
     }
 });
-
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
