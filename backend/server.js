@@ -143,14 +143,24 @@ app.post('/api/upgrade/:type', authMiddleware, (req, res) => {
     }
 });
 
-// Пример для Node.js/Express
-app.get('/api/leaderboard', async (req, res) => {
+// Твои временные данные (убедись, что это массив [], а не объект {}, 
+// так как фронтенд использует .map)
+const players = [
+    { name: "Игрок 1", balance: 5000 },
+    { name: "Игрок 2", balance: 2500 },
+    { name: "Игрок 3", balance: 1200 }
+];
+
+app.get('/api/leaderboard', (req, res) => {
     try {
-        // Логика получения топа из базы данных
-        const topPlayers = await User.find().sort({ balance: -1 }).limit(10);
-        res.json(topPlayers);
+        // Сортируем по балансу (от большего к меньшему) перед отправкой
+        const sortedPlayers = [...players].sort((a, b) => b.balance - a.balance);
+        
+        // Отправляем именно JSON
+        res.status(200).json(sortedPlayers);
     } catch (err) {
-        res.status(500).json({ error: "Ошибка сервера" });
+        console.error(err);
+        res.status(500).json({ error: "Ошибка на стороне сервера" });
     }
 });
 
