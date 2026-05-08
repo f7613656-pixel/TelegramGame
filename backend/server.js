@@ -1,15 +1,17 @@
+const express = require('express');
 const { Pool } = require('pg');
+const crypto = require('crypto'); // Обязательно добавь этот импорт
 require('dotenv').config();
 
-// Настройка пула соединений
+const app = express();
+app.use(express.json()); // Middleware для парсинга JSON
+
+// --- ПОДКЛЮЧЕНИЕ БД ---
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // Без этого будет ошибка 500 или таймаут
-  }
+  ssl: { rejectUnauthorized: false }
 });
 
-// Функция для создания таблицы (выполнится один раз при запуске, если таблицы нет)
 const initDB = async () => {
   const query = `
     CREATE TABLE IF NOT EXISTS users (
@@ -28,32 +30,32 @@ const initDB = async () => {
     console.error("Ошибка инициализации БД:", err);
   }
 };
-
 initDB();
-// Твой токен от BotFather
+
 const BOT_TOKEN = '8782512322:AAE2dwWX7V2PZwFIj3aAFLC-GoszWh0hwiQ';
 
-
-
-// --- ПРОВЕРКА ПОДЛИННОСТИ (TELEGRAM) ---
+// --- ПРОВЕРКА TELEGRAM ---
 function verifyTelegramWebAppData(initData) {
     if (!initData) return false;
-    const urlParams = new URLSearchParams(initData);
-    const hash = urlParams.get('hash');
-    urlParams.delete('hash');
-    urlParams.sort();
-    
-    const dataCheckString = Array.from(urlParams.entries())
-        .map(([key, value]) => `${key}=${value}`)
-        .join('\n');
+    try {
+        const urlParams = new URLSearchParams(initData);
+        const hash = urlParams.get('hash');
+        urlParams.delete('hash');
+        urlParams.sort();
+        
+        const dataCheckString = Array.from(urlParams.entries())
+            .map(([key, value]) => `${key}=${value}`)
+            .join('\n');
 
-    const secret = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
-    const _hash = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
-    
-    return _hash === hash;
+        const secret = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+        const _hash = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
+        
+        return _hash === hash;
+    } catch (e) {
+        return false;
+    }
 }
 
-// --- MIDDLEWARE ДЛЯ ЗАЩИТЫ ---
 const authMiddleware = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).send('No auth header');
@@ -65,22 +67,9 @@ const authMiddleware = (req, res, next) => {
     next();
 };
 
-// --- ФУНКЦИЯ ПЕРЕРАСЧЕТА (ВРЕМЯ = ДЕНЬГИ) ---
-function getRecalculatedPlayer(player) {
-    const now = Date.now();
-    const elapsedSeconds = (now - player.lastSyncTime) / 1000;
-    
-    // Начисляем пассивный доход за прошедшее время
-    const earnedPassive = elapsedSeconds * player.passiveIncome;
-    player.balance += earnedPassive;
-    player.lastSyncTime = now;
-    
-    return player;
-}
-
 // --- МАРШРУТЫ ---
 
-// 1. Вход в игру (создание или получение профиля)
+// 1. Вход/Получение юзера
 app.get('/api/user/:id', async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM users WHERE id = $1', [req.params.id]);
@@ -94,14 +83,12 @@ app.get('/api/user/:id', async (req, res) => {
     }
 });
 
-// 2. Синхронизация кликов и пассивного дохода
+// 2. Синхронизация (теперь обновляет и клики, и пассив)
 app.post('/api/sync', async (req, res) => {
     const { userId, name, balance } = req.body;
-    
     if (!userId) return res.status(400).send("No user ID");
 
     try {
-        // UPSERT: если юзер есть — обновляем, если нет — создаем
         const query = `
             INSERT INTO users (id, name, balance, last_sync)
             VALUES ($1, $2, $3, $4)
@@ -109,64 +96,63 @@ app.post('/api/sync', async (req, res) => {
             SET balance = $3, name = $2, last_sync = $4
             RETURNING *;
         `;
-        const values = [userId.toString(), name, balance, Date.now()];
-        const result = await pool.query(query, values);
-        
+        const result = await pool.query(query, [userId.toString(), name, balance, Date.now()]);
         res.json(result.rows[0]);
     } catch (err) {
-        console.error("Ошибка при синхронизации:", err);
+        console.error("Ошибка синхронизации:", err);
         res.status(500).send("Ошибка сохранения");
     }
 });
 
-// 3. Покупка улучшений
-app.post('/api/upgrade/:type', authMiddleware, (req, res) => {
-    const { userId, pendingClicks } = req.body; 
+// 3. Покупка улучшений (ПОЛНОСТЬЮ ПЕРЕПИСАНО ПОД БД)
+app.post('/api/upgrade/:type', authMiddleware, async (req, res) => {
+    const { userId } = req.body;
     const type = req.params.type;
-    let player = players[userId];
 
-    if (!player) return res.status(404).send('User not found');
-
-    // Сначала актуализируем баланс и добавляем еще не отправленные клики
-    player = getRecalculatedPlayer(player);
-    if (pendingClicks > 0) {
-        player.balance += pendingClicks * player.clickPower;
-    }
-
-    let cost = 0;
-    if (type === 'click') {
-        cost = player.clickPower * 100;
-    } else if (type === 'passive') {
-        const level = Math.floor(player.passiveIncome / 5);
-        cost = (level + 1) * 150;
-    } else {
-        return res.status(400).send('Invalid upgrade type');
-    }
-
-    if (player.balance >= cost) {
-        player.balance -= cost;
+    try {
+        // Получаем текущие данные игрока из БД
+        const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId.toString()]);
+        if (userRes.rows.length === 0) return res.status(404).send('User not found');
         
+        let user = userRes.rows[0];
+        let cost = 0;
+        let updateQuery = "";
+        let queryParams = [];
+
         if (type === 'click') {
-            player.clickPower += 1;
+            cost = user.click_power * 100;
+            if (user.balance < cost) return res.status(400).json({ message: "Недостаточно монет" });
+            
+            updateQuery = "UPDATE users SET balance = balance - $1, click_power = click_power + 1 WHERE id = $2 RETURNING *";
+            queryParams = [cost, user.id];
         } else if (type === 'passive') {
-            player.passiveIncome += 5;
+            const level = Math.floor(user.passive_income / 5);
+            cost = (level + 1) * 150;
+            if (user.balance < cost) return res.status(400).json({ message: "Недостаточно монет" });
+            
+            updateQuery = "UPDATE users SET balance = balance - $1, passive_income = passive_income + 5 WHERE id = $2 RETURNING *";
+            queryParams = [cost, user.id];
+        } else {
+            return res.status(400).send('Invalid type');
         }
 
+        const result = await pool.query(updateQuery, queryParams);
+        const updatedUser = result.rows[0];
+
         res.json({
-            balance: player.balance,
-            clickPower: player.clickPower,
-            passiveIncome: player.passiveIncome,
+            balance: updatedUser.balance,
+            clickPower: updatedUser.click_power,
+            passiveIncome: updatedUser.passive_income,
             serverTime: Date.now()
         });
-    } else {
-        res.status(400).json({ message: "Недостаточно монет" });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Ошибка при покупке");
     }
 });
 
-// Твои временные данные (убедись, что это массив [], а не объект {}, 
-// так как фронтенд использует .map)
-
-
+// 4. Топы
 app.get('/api/leaderboard', async (req, res) => {
     try {
         const result = await pool.query(
@@ -174,7 +160,6 @@ app.get('/api/leaderboard', async (req, res) => {
         );
         res.json(result.rows); 
     } catch (err) {
-        console.error("Ошибка БД в топах:", err);
         res.status(500).json({ error: "Ошибка сервера" });
     }
 });
