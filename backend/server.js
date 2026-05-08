@@ -74,14 +74,19 @@ const authMiddleware = (req, res, next) => {
 // 1. Вход/Получение юзера
 app.get('/api/user/:id', async (req, res) => {
     try {
+        console.log("Поиск пользователя с ID:", req.params.id); // Лог для проверки
         const result = await pool.query('SELECT * FROM users WHERE id = $1', [req.params.id]);
+        
         if (result.rows.length > 0) {
             res.json(result.rows[0]);
         } else {
-            res.status(404).send("User not found");
+            // Если юзера нет в базе, лучше не выдавать 404, 
+            // а возвращать пустой объект или дефолтные значения
+            res.json({ id: req.params.id, balance: 0, click_power: 1, isNew: true });
         }
     } catch (err) {
-        res.status(500).send("Server error");
+        console.error("КРИТИЧЕСКАЯ ОШИБКА БД:", err.message);
+        res.status(500).json({ error: "Database error", details: err.message });
     }
 });
 
