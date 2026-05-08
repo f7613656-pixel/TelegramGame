@@ -14,6 +14,32 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// Этот код сам починит базу при запуске сервера
+const autoFixDatabase = async () => {
+  try {
+    await pool.query(`
+      -- 1. Меняем ID на текст, чтобы длинные Telegram ID не ломали базу
+      ALTER TABLE users ALTER COLUMN id TYPE TEXT;
+      
+      -- 2. Добавляем недостающие колонки, если их нет
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS balance BIGINT DEFAULT 0;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS click_power INTEGER DEFAULT 1;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS passive_income INTEGER DEFAULT 0;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_sync BIGINT DEFAULT ${Date.now()};
+      
+      -- 3. Исправляем NULL значения (если они уже успели появиться)
+      UPDATE users SET balance = 0 WHERE balance IS NULL;
+      UPDATE users SET click_power = 1 WHERE click_power IS NULL;
+      UPDATE users SET passive_income = 0 WHERE passive_income IS NULL;
+      
+      console.log("✅ БАЗА ДАННЫХ ПРОВЕРЕНА И ИСПРАВЛЕНА");
+    `);
+  } catch (err) {
+    console.error("❌ ОШИБКА ПРИ ФИКСЕ БАЗЫ:", err.message);
+  }
+};
+autoFixDatabase();
+
 const initDB = async () => {
   const query = `
     CREATE TABLE IF NOT EXISTS users (
@@ -91,36 +117,28 @@ app.get('/api/user/:id', async (req, res) => {
 });
 
 app.post('/api/sync', async (req, res) => {
-    console.log("=== СИНХРОНИЗАЦИЯ ===");
-    console.log("Полученные данные:", req.body); // Смотрим, что реально пришло
+  const { userId, clicks } = req.body;
+  
+  try {
+    const query = `
+      UPDATE users 
+      SET balance = balance + $1 
+      WHERE id = $2 
+      RETURNING balance, click_power, passive_income;
+    `;
+    // Важно: userId.toString(), чтобы не было конфликта типов
+    const result = await pool.query(query, [clicks, userId.toString()]);
 
-    // Проверяем, что тело запроса вообще есть
-    if (!req.body || req.body.userId === undefined) {
-        console.error("Ошибка: фронтенд не прислал userId!");
-        return res.status(400).json({ error: "No user ID provided" });
+    if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Пользователь не найден" });
     }
 
-    const { userId, name, balance } = req.body;
-
-    try {
-        const query = `
-            INSERT INTO users (id, name, balance, last_sync)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (id) DO UPDATE
-            SET balance = $3, name = $2, last_sync = $4
-            RETURNING *;
-        `;
-        const values = [userId.toString(), name || "Player", balance || 0, Date.now()];
-        const result = await pool.query(query, values);
-        
-        console.log("Успешно сохранено:", result.rows[0].id);
-        res.json(result.rows[0]);
-    } catch (err) {
-        console.error("ОШИБКА БД ПРИ СИНХРОНИЗАЦИИ:", err.message);
-        res.status(500).json({ error: "Ошибка сохранения", details: err.message });
-    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("SYNC ERROR:", err.message);
+    res.status(500).json({ error: "Ошибка сохранения", details: err.message });
+  }
 });
-
 // 3. Покупка улучшений (ПОЛНОСТЬЮ ПЕРЕПИСАНО ПОД БД)
 app.post('/api/upgrade/click', authMiddleware, async (req, res) => {
     const { userId } = req.body;
