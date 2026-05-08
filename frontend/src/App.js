@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // Добавил useCallback в импорт
 import './App.css';
 
 const tg = window.Telegram.WebApp;
@@ -96,6 +96,7 @@ useEffect(() => {
         }, 2000);
         return () => clearInterval(syncInterval);
     }, [unprocessedClicks, user.id, authorizedFetch]);
+
 const handleTap = (e) => {
         setUnprocessedClicks(prev => prev + 1);
         const id = Date.now();
@@ -135,7 +136,8 @@ const syncWithServer = async () => {
 useEffect(() => {
     const interval = setInterval(syncWithServer, 2000); // Синхрон раз в 2 сек
     return () => clearInterval(interval);
-}, [unprocessedClicks]);
+}, [unprocessedClicks, syncWithServer]); // Добавил syncWithServer в зависимости
+
   const buyUpgrade = async (type) => {
         try {
             const res = await authorizedFetch(`/api/upgrade/${type}`, {
@@ -145,7 +147,8 @@ useEffect(() => {
 
             if (res.ok) {
                 const data = await res.json();
-                setBalance(Number(data.balance));
+                // ИСПРАВЛЕНО: замена setBalance на setServerData
+                setServerData({ balance: data.balance, lastSync: data.serverTime });
                 setClickPower(Number(data.clickPower));
                 setPassiveIncome(Number(data.passiveIncome));
             } else if (res.status === 400) {
@@ -171,7 +174,8 @@ useEffect(() => {
         
         <div className="balance-pill">
     <div className="crystal-icon"></div>
-    <span className="balance-value">{Math.floor(balance).toLocaleString()}</span>
+    {/* ИСПРАВЛЕНО: balance заменен на visualBalance */}
+    <span className="balance-value">{Math.floor(visualBalance).toLocaleString()}</span>
 </div>
     </div>
 </header>
