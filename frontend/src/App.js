@@ -83,20 +83,23 @@ function App() {
         loadData();
     }, [user.id, authorizedFetch]);
 
-    useEffect(() => {
-        if (activeTab === 'leaderboard') {
-            const fetchTops = async () => {
-                try {
-                    const res = await authorizedFetch('/api/leaderboard');
-                    if (res.ok) {
-                        const data = await res.json();
-                        setLeaderboard(data);
-                    }
-                } catch (e) { console.error(e); }
-            };
-            fetchTops();
-        }
-    }, [activeTab, authorizedFetch]);
+   useEffect(() => {
+    if (activeTab === 'leaderboard') {
+        const fetchTops = async () => {
+            try {
+                // Добавляем параметр категории в запрос
+                const res = await authorizedFetch(`/api/leaderboard?type=${leaderboardCategory}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setLeaderboard(data);
+                }
+            } catch (e) { 
+                console.error("Ошибка загрузки топов:", e); 
+            }
+        };
+        fetchTops();
+    }
+}, [activeTab, leaderboardCategory, authorizedFetch]); // Добавлен leaderboardCategory
 
     // Анимация баланса
     useEffect(() => {
@@ -153,23 +156,7 @@ function App() {
         }
     };
 
-    useEffect(() => {
-    if (activeTab === 'leaderboard') {
-        const fetchTops = async () => {
-            try {
-                // Добавляем параметр категории в запрос
-                const res = await authorizedFetch(`/api/leaderboard?type=${leaderboardCategory}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setLeaderboard(data);
-                }
-            } catch (e) { 
-                console.error("Ошибка загрузки топов:", e); 
-            }
-        };
-        fetchTops();
-    }
-}, [activeTab, leaderboardCategory, authorizedFetch]); // Добавлен leaderboardCategory
+   
 
     return (
         <div className="App">
