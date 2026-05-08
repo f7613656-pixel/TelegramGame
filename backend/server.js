@@ -143,6 +143,17 @@ app.post('/api/upgrade/:type', authMiddleware, (req, res) => {
     }
 });
 
+// Пример для Node.js/Express
+app.get('/api/leaderboard', async (req, res) => {
+    try {
+        // Логика получения топа из базы данных
+        const topPlayers = await User.find().sort({ balance: -1 }).limit(10);
+        res.json(topPlayers);
+    } catch (err) {
+        res.status(500).json({ error: "Ошибка сервера" });
+    }
+});
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
