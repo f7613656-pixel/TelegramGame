@@ -1,64 +1,45 @@
 const express = require('express');
-const cors = require('cors'); // Импортируем
+const cors = require('cors');
 const { Pool } = require('pg');
-const crypto = require('crypto'); // Обязательно добавь этот импорт
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
-app.use(cors()); // Должен быть первым!
-app.use(express.json()); // Должен быть вторым!
+app.use(cors());
+app.use(express.json());
 
-// --- ПОДКЛЮЧЕНИЕ БД ---
+// --- УМНОЕ ПОДКЛЮЧЕНИЕ К БД ---
+// Решает проблему с SSL: включает его только для облачных баз (Render/Supabase)
+const dbUrl = process.env.DATABASE_URL || '';
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  connectionString: dbUrl,
+  ssl: dbUrl.includes('render.com') || dbUrl.includes('supabase') 
+    ? { rejectUnauthorized: false } 
+    : false
 });
 
-// Этот код сам починит базу при запуске сервера
+// Авто-фикс таблиц при запуске
 const autoFixDatabase = async () => {
   try {
-    // Внутри кавычек должен быть ТОЛЬКО чистый SQL
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(100),
+        balance BIGINT DEFAULT 0,
+        click_power INTEGER DEFAULT 1,
+        passive_income INTEGER DEFAULT 0,
+        last_sync BIGINT
+      );
       ALTER TABLE users ALTER COLUMN id TYPE TEXT;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS balance BIGINT DEFAULT 0;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS click_power INTEGER DEFAULT 1;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS passive_income INTEGER DEFAULT 0;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_sync BIGINT DEFAULT 0;
-      
-      UPDATE users SET balance = 0 WHERE balance IS NULL;
-      UPDATE users SET click_power = 1 WHERE click_power IS NULL;
-      UPDATE users SET passive_income = 0 WHERE passive_income IS NULL;
     `);
-    
-    // console.log должен быть ЗДЕСЬ, вне скобок pool.query
-    console.log("✅ БАЗА ДАННЫХ ПРОВЕРЕНА И ИСПРАВЛЕНА");
+    console.log("✅ База данных проверена и готова к работе!");
   } catch (err) {
-    console.error("❌ ОШИБКА ПРИ ФИКСЕ БАЗЫ:", err.message);
+    console.error("❌ Ошибка при фиксе базы:", err.message);
   }
 };
-
 autoFixDatabase();
-const initDB = async () => {
-  const query = `
-    CREATE TABLE IF NOT EXISTS users (
-      id VARCHAR(50) PRIMARY KEY,
-      name VARCHAR(100),
-      balance NUMERIC DEFAULT 0,
-      click_power INTEGER DEFAULT 1,
-      passive_income INTEGER DEFAULT 0,
-      last_sync BIGINT
-    );
-  `;
-  try {
-    await pool.query(query);
-    console.log("База данных готова к работе");
-  } catch (err) {
-    console.error("Ошибка инициализации БД:", err);
-  }
-};
-initDB();
 
-const BOT_TOKEN = '8782512322:AAE2dwWX7V2PZwFIj3aAFLC-GoszWh0hwiQ';
+const BOT_TOKEN = process.env.BOT_TOKEN || '8782512322:AAE2dwWX7V2PZwFIj3aAFLC-GoszWh0hwiQ';
 
 // --- ПРОВЕРКА TELEGRAM ---
 function verifyTelegramWebAppData(initData) {
@@ -95,18 +76,26 @@ const authMiddleware = (req, res, next) => {
 
 // --- МАРШРУТЫ ---
 
-// 1. Вход/Получение юзера
+// 1. Вход/Получение юзера (С АВТОРЕГИСТРАЦИЕЙ)
 app.get('/api/user/:id', async (req, res) => {
     try {
-        console.log("Поиск пользователя с ID:", req.params.id); // Лог для проверки
-        const result = await pool.query('SELECT * FROM users WHERE id = $1', [req.params.id]);
+        const userId = req.params.id.toString();
+        const userName = req.query.name || "Игрок"; // Имя берем из запроса
+        
+        const result = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
         
         if (result.rows.length > 0) {
             res.json(result.rows[0]);
         } else {
-            // Если юзера нет в базе, лучше не выдавать 404, 
-            // а возвращать пустой объект или дефолтные значения
-            res.json({ id: req.params.id, balance: 0, click_power: 1, isNew: true });
+            // ГЛАВНЫЙ ФИКС: Создаем пользователя в БД, если его еще нет!
+            const insertQuery = `
+                INSERT INTO users (id, name, balance, click_power, passive_income, last_sync) 
+                VALUES ($1, $2, 0, 1, 0, $3) 
+                RETURNING *;
+            `;
+            const newUser = await pool.query(insertQuery, [userId, userName, Date.now()]);
+            console.log(`[РЕГИСТРАЦИЯ] Создан новый игрок: ${userName} (ID: ${userId})`);
+            res.json(newUser.rows[0]);
         }
     } catch (err) {
         console.error("КРИТИЧЕСКАЯ ОШИБКА БД:", err.message);
@@ -114,69 +103,71 @@ app.get('/api/user/:id', async (req, res) => {
     }
 });
 
+// 2. Синхронизация кликов
 app.post('/api/sync', async (req, res) => {
     const { userId, clicks } = req.body;
 
-    // Если данных нет, пишем в логи сервера, чего именно нет
     if (!userId || clicks === undefined) {
-        console.log(`[!] Ошибка 400. Получено: userId=${userId}, clicks=${clicks}`);
-        return res.status(400).json({ 
-            error: "Неполные данные запроса", 
-            received: { userId: userId || "missing", clicks: clicks ?? "missing" } 
-        });
+        return res.status(400).json({ error: "Неполные данные запроса" });
     }
+
     try {
-        // Используем максимально простой запрос для проверки
         const query = `
             UPDATE users 
-            SET balance = COALESCE(balance, 0) + $1 
+            SET balance = COALESCE(balance, 0) + $1, last_sync = $3
             WHERE id = $2 
             RETURNING balance, click_power, passive_income
         `;
         
-        const result = await pool.query(query, [Number(clicks), userId.toString()]);
+        const result = await pool.query(query, [Number(clicks), userId.toString(), Date.now()]);
 
         if (result.rows.length === 0) {
-            console.error(`[SYNC] Пользователь ${userId} не найден в базе`);
             return res.status(404).json({ error: "Пользователь не найден" });
         }
 
-        console.log(`[SYNC] Успех! Новый баланс пользователя ${userId}: ${result.rows[0].balance}`);
         res.json(result.rows[0]);
-
     } catch (err) {
-        // ТУТ мы наконец увидим реальную ошибку в логах Render
-        console.error("!!! КРИТИЧЕСКАЯ ОШИБКА БАЗЫ:");
-        console.error("Сообщение:", err.message);
-        console.error("Код ошибки:", err.code);
-
-        res.status(500).json({ 
-            error: "Ошибка сохранения", 
-            details: err.message 
-        });
+        console.error("ОШИБКА СИНХРОНИЗАЦИИ:", err.message);
+        res.status(500).json({ error: "Ошибка сохранения", details: err.message });
     }
 });
-// 3. Покупка улучшений (ПОЛНОСТЬЮ ПЕРЕПИСАНО ПОД БД)
-app.post('/api/upgrade/click', authMiddleware, async (req, res) => {
+
+// 3. Покупка улучшений
+app.post('/api/upgrade/:type', authMiddleware, async (req, res) => {
     const { userId } = req.body;
+    const { type } = req.params;
     
     if (!userId) return res.status(400).json({ message: "ID не передан" });
 
     try {
-        // Используем COALESCE, чтобы если в базе NULL, заменялось на 1 и 0
-        const query = `
-            UPDATE users 
-            SET 
-                balance = balance - (COALESCE(click_power, 1) * 100),
-                click_power = COALESCE(click_power, 1) + 1 
-            WHERE id = $1 AND balance >= (COALESCE(click_power, 1) * 100)
-            RETURNING balance, click_power, passive_income;
-        `;
+        let query = "";
+        
+        if (type === 'click') {
+            query = `
+                UPDATE users 
+                SET 
+                    balance = balance - (COALESCE(click_power, 1) * 100),
+                    click_power = COALESCE(click_power, 1) + 1 
+                WHERE id = $1 AND balance >= (COALESCE(click_power, 1) * 100)
+                RETURNING balance, click_power, passive_income;
+            `;
+        } else if (type === 'passive') {
+            query = `
+                UPDATE users 
+                SET 
+                    balance = balance - ((FLOOR(COALESCE(passive_income, 0) / 5) + 1) * 150),
+                    passive_income = COALESCE(passive_income, 0) + 5
+                WHERE id = $1 AND balance >= ((FLOOR(COALESCE(passive_income, 0) / 5) + 1) * 150)
+                RETURNING balance, click_power, passive_income;
+            `;
+        } else {
+            return res.status(400).json({ message: "Неизвестный тип улучшения" });
+        }
         
         const result = await pool.query(query, [userId.toString()]);
 
         if (result.rows.length === 0) {
-            return res.status(400).json({ message: "Недостаточно монет или юзер не найден" });
+            return res.status(400).json({ message: "Недостаточно монет" });
         }
 
         const updatedUser = result.rows[0];
@@ -188,7 +179,7 @@ app.post('/api/upgrade/click', authMiddleware, async (req, res) => {
         });
 
     } catch (err) {
-        console.error("ОШИБКА АПГРЕЙДА КЛИКА:", err.message);
+        console.error("ОШИБКА АПГРЕЙДА:", err.message);
         res.status(500).json({ message: "Ошибка БД", details: err.message });
     }
 });
@@ -196,7 +187,6 @@ app.post('/api/upgrade/click', authMiddleware, async (req, res) => {
 // 4. Топы
 app.get('/api/leaderboard', async (req, res) => {
     try {
-        // Проверяем по балансу, берем топ 10
         const result = await pool.query(`
             SELECT name, balance 
             FROM users 
@@ -204,13 +194,13 @@ app.get('/api/leaderboard', async (req, res) => {
             ORDER BY balance DESC 
             LIMIT 10
         `);
-        
         res.json(result.rows);
     } catch (err) {
         console.error("ОШИБКА ЛИДЕРБОРДА:", err.message);
-        res.status(500).json([]); // Возвращаем пустой массив вместо ошибки 500
+        res.status(500).json([]); 
     }
 });
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);

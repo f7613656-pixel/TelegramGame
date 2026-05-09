@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 
-
 const tg = window.Telegram.WebApp;
 const API_URL = 'https://telegramgame-1.onrender.com'; 
 
@@ -15,8 +14,8 @@ function App() {
     const [serverData, setServerData] = useState({ balance: 0, lastSync: Date.now() });
     const [unprocessedClicks, setUnprocessedClicks] = useState(0);
     const [visualBalance, setVisualBalance] = useState(0);
-    const [shopCategory, setShopCategory] = useState('clicks'); // категории: clicks, passive, boxes
-    const [leaderboardCategory, setLeaderboardCategory] = useState('all'); // 'all' или 'month'
+    const [shopCategory, setShopCategory] = useState('clicks');
+    const [leaderboardCategory, setLeaderboardCategory] = useState('all');
     const [clicks, setClicks] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
 
@@ -33,40 +32,31 @@ function App() {
         return fetch(`${API_URL}${endpoint}`, { ...options, headers });
     }, []);
 
-    // Функция синхронизации кликов
-// Обновленная функция синхронизации
-  const syncWithServer = useCallback(async (forcedClicks = null) => {
-    // 1. Проверяем, есть ли у нас ID пользователя и клики для отправки
-    const clicksToSend = forcedClicks !== null ? forcedClicks : unprocessedClicks;
-    
-    if (!user?.id || clicksToSend <= 0) {
-        // Если юзера нет или кликов 0 — просто выходим, не мучая сервер
-        return; 
-    }
+    const syncWithServer = useCallback(async (forcedClicks = null) => {
+        const clicksToSend = forcedClicks !== null ? forcedClicks : unprocessedClicks;
+        
+        if (!user?.id || clicksToSend <= 0) return; 
 
-    try {
-        const res = await authorizedFetch('/api/sync', {
-            method: 'POST',
-            body: JSON.stringify({ 
-                userId: user.id.toString(), // Принудительно в строку
-                clicks: Number(clicksToSend) 
-            })
-        });
+        try {
+            const res = await authorizedFetch('/api/sync', {
+                method: 'POST',
+                body: JSON.stringify({ 
+                    userId: user.id.toString(), 
+                    clicks: Number(clicksToSend) 
+                })
+            });
 
-        const data = await res.json();
+            const data = await res.json();
 
-        if (res.ok) {
-            setServerData({ balance: data.balance, lastSync: Date.now() });
-            if (forcedClicks === null) setUnprocessedClicks(0);
-        } else {
-            console.error("Сервер ответил ошибкой:", data.error);
+            if (res.ok) {
+                setServerData({ balance: Number(data.balance), lastSync: Date.now() });
+                if (forcedClicks === null) setUnprocessedClicks(0);
+            }
+        } catch (err) {
+            console.error("Ошибка сети при синхронизации:", err);
         }
-    } catch (err) {
-        console.error("Ошибка сети при синхронизации:", err);
-    }
-}, [user, unprocessedClicks, authorizedFetch]);
+    }, [user, unprocessedClicks, authorizedFetch]);
 
-    // Обновленная функция покупки
     const buyUpgrade = async (type) => {
         try {
             if (unprocessedClicks > 0) {
@@ -75,12 +65,12 @@ function App() {
 
             const res = await authorizedFetch(`/api/upgrade/${type}`, {
                 method: 'POST',
-                body: JSON.stringify({ userId: user.id })
+                body: JSON.stringify({ userId: user.id.toString() })
             });
 
             if (res.ok) {
                 const data = await res.json();
-                setServerData({ balance: Number(data.balance), lastSync: data.serverTime });
+                setServerData({ balance: Number(data.balance), lastSync: data.serverTime || Date.now() });
                 setClickPower(Number(data.clickPower));
                 setPassiveIncome(Number(data.passiveIncome));
                 showNotice("Улучшение куплено!");
@@ -91,15 +81,12 @@ function App() {
                 showNotice("Ошибка базы данных");
             }
         } catch (err) {
-            console.error("Сетевая ошибка при покупке:", err);
-            showNotice("Ошибка соединения с сервером"); // Изменили текст для понятности
+            showNotice("Ошибка соединения с сервером");
         }
     };
 
-    // Специальная функция для смены вкладки с принудительным сохранением
     const handleTabChange = async (tab) => {
         if (tab === 'shop' && unprocessedClicks > 0) {
-            // Если идем в магазин, сначала сохраняем всё
             await syncWithServer();
         }
         setActiveTab(tab);
@@ -110,54 +97,36 @@ function App() {
         tg.expand();
         const loadData = async () => {
             try {
-                const res = await authorizedFetch(`/api/user/${user.id}`);
+                // Передаем имя юзера, чтобы бэкенд мог его сохранить
+                const res = await authorizedFetch(`/api/user/${user.id}?name=${encodeURIComponent(user.first_name)}`);
                 if (res.ok) {
                     const data = await res.json();
-                    setServerData({ balance: data.balance, lastSync: data.serverTime });
-                    setClickPower(data.clickPower);
-                    setPassiveIncome(data.passiveIncome);
+                    setServerData({ balance: Number(data.balance || 0), lastSync: data.last_sync || Date.now() });
+                    setClickPower(Number(data.click_power || 1));
+                    setPassiveIncome(Number(data.passive_income || 0));
                 }
             } catch (e) { console.error(e); }
         };
         loadData();
-    }, [user.id, authorizedFetch]);
+    }, [user.id, user.first_name, authorizedFetch]);
 
-   useEffect(() => {
-    // Запрашиваем данные только если выбрана вкладка топов
-    if (activeTab === 'leaderboard') {
-        const fetchTops = async () => {
-            try {
-                console.log("Запрос топов для категории:", leaderboardCategory); // Отладка
-                
-                // Пробуем отправить запрос. Если бэкенд еще не фильтрует по type, 
-                // он просто вернет общий список, что нам и нужно для начала.
-                const res = await authorizedFetch(`/api/leaderboard?type=${leaderboardCategory}`);
-                
-                if (res.ok) {
-                    const data = await res.json();
-                    console.log("Получены данные топов:", data); // Проверь это в консоли F12
-                    
-                    // Проверяем, что пришел массив, прежде чем записывать
-                    if (Array.isArray(data)) {
-                        setLeaderboard(data);
-                    } else {
-                        console.error("Бэкенд вернул не массив:", data);
-                        setLeaderboard([]); 
+    useEffect(() => {
+        if (activeTab === 'leaderboard') {
+            const fetchTops = async () => {
+                try {
+                    const res = await authorizedFetch(`/api/leaderboard?type=${leaderboardCategory}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setLeaderboard(Array.isArray(data) ? data : []);
                     }
-                } else {
-                    console.error("Ошибка сервера при загрузке топов. Статус:", res.status);
+                } catch (e) { 
                     setLeaderboard([]);
                 }
-            } catch (e) { 
-                console.error("Сетевая ошибка при загрузке топов:", e);
-                setLeaderboard([]);
-            }
-        };
-        fetchTops();
-    }
-}, [activeTab, leaderboardCategory, authorizedFetch]);
+            };
+            fetchTops();
+        }
+    }, [activeTab, leaderboardCategory, authorizedFetch]);
 
-    // Анимация баланса
     useEffect(() => {
         let animationFrame;
         const updateVisual = () => {
@@ -171,7 +140,6 @@ function App() {
         return () => cancelAnimationFrame(animationFrame);
     }, [serverData, passiveIncome, unprocessedClicks, clickPower]);
 
-    // Фоновая синхронизация каждые 2 секунды
     useEffect(() => {
         const interval = setInterval(syncWithServer, 2000);
         return () => clearInterval(interval);
@@ -186,10 +154,6 @@ function App() {
         setClicks((prev) => [...prev, { id: tapId, x: posX, y: posY, value: clickPower }]);
         setTimeout(() => setClicks((prev) => prev.filter(c => c.id !== tapId)), 800);
     };
-
- 
-
-   
 
     return (
         <div className="App">
